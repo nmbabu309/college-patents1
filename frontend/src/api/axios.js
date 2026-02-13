@@ -41,6 +41,12 @@ api.interceptors.response.use(
   (error) => {
     if (error.response) {
       console.error(`❌ API Error [${error.response.status}]: ${error.config.url}`, error.response.data);
+
+      // Auto-logout on 401 (expired/invalid token) — skip for login endpoint
+      if (error.response.status === 401 && !error.config.url?.includes('/login')) {
+        localStorage.removeItem('token');
+        window.location.href = '/';
+      }
     } else if (error.request) {
       console.error(`❌ API Network Error: No response received from ${error.config.url}`);
     } else {

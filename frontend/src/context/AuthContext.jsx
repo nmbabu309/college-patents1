@@ -22,9 +22,16 @@ export const AuthProvider = ({ children }) => {
           }).join(''));
 
           const decoded = JSON.parse(jsonPayload);
-          // JWT now contains: { userEmail, role, department, adminId }
-          setUser(decoded);
-          setIsAuthenticated(true);
+
+          // Check if token is expired
+          if (decoded.exp && decoded.exp * 1000 < Date.now()) {
+            console.warn('Token expired, logging out');
+            localStorage.removeItem('token');
+          } else {
+            // JWT now contains: { userEmail, role, department, adminId }
+            setUser(decoded);
+            setIsAuthenticated(true);
+          }
         } catch (e) {
           console.error("Invalid token", e);
           localStorage.removeItem('token');

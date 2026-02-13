@@ -540,14 +540,8 @@ router.delete("/deleteEntry/:id", verifyToken, requireAnyAdmin, async (req, res)
   }
 });
 
-// GET route - Admin authentication required
-// Department filtering applies to sub-admins automatically
-// GET route - Public access
-// If logged in as sub-admin, filter by department. Otherwise show all.
-// GET route - Public access
-// If logged in as sub-admin, filter by department. Otherwise show all.
-// GET route - Public access
-// If logged in as sub-admin, filter by department. Otherwise show all.
+// GET route - Public access (no auth required)
+// Sub-admins with valid token see only their department's data; everyone else sees all.
 router.get("/formGet", async (req, res) => {
   try {
     // Pagination parameters
@@ -646,10 +640,7 @@ router.get("/formGet", async (req, res) => {
 });
 
 
-// Excel download - Admin authentication required
-// Department filtering applies to sub-admins automatically
-// Excel download - Public access
-// If logged in as sub-admin, filter. Otherwise download all.
+// Excel download - requires authentication; sub-admins get department-filtered data
 router.get("/downloadExcel", verifyToken, async (req, res) => {
   try {
     // Filter by department for sub-admins only

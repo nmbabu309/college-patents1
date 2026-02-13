@@ -5,6 +5,7 @@ import FormRoutes from "./routers/formHandling.js"
 import AdminRoutes from "./routers/Admin.js"
 import cors from "cors"
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import compression from "compression";
 import path from 'path';
 import fs from 'fs';
@@ -116,9 +117,35 @@ const corsOptions = {
 }
 app.use(cors(corsOptions));
 
-app.use("/login", loginRoutes);
+// Rate limiter for login route: 50 requests per 10 minutes per IP
+const loginLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many login attempts. Please try again after 10 minutes." }
+});
+
+app.use("/login", loginLimiter, loginRoutes);
 app.use("/form", FormRoutes);
 app.use("/admin", AdminRoutes);
+
+// Global error handler — catches unhandled errors and prevents stack trace leakage
+app.use((err, req, res, next) => {
+  console.error(`❌ Unhandled error on ${req.method} ${req.url}:`, err.message);
+
+  // Handle Multer file upload errors
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ message: "File too large. Maximum size is 5MB." });
+  }
+  if (err.message === 'Only PDF files are allowed') {
+    return res.status(400).json({ message: err.message });
+  }
+
+  // Generic error response (no stack trace)
+  return res.status(err.status || 500).json({ message: "Internal server error" });
+});
+
 app.listen(port, '0.0.0.0', () => {
   console.log(`Running at 0.0.0.0:${port}`)
 })
