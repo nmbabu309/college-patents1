@@ -1,0 +1,77 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run Backend (nodemon)",
+      "type": "shell",
+      "command": "powershell -NoExit -Command \"nodemon index.js\"",
+      "isBackground": true,
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^([^\\s].*)\\s+(\\d+):(\\d+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "nodemon",
+          "endsPattern": "Running at"
+        }
+      },
+      "presentation": {
+        "panel": "dedicated",
+        "group": "backend"
+      }
+    },
+    {
+      "label": "Run Frontend (vite)",
+      "type": "shell",
+      "command": "powershell -NoExit -Command \"npx vite --host 0.0.0.0\"",
+      "isBackground": true,
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^([^\\s].*)\\s+(\\d+):(\\d+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "vite",
+          "endsPattern": "Local:"
+        }
+      },
+      "presentation": {
+        "panel": "dedicated",
+        "group": "frontend"
+      }
+    },
+    {
+      "label": "Open Browser",
+      "type": "shell",
+      "command": "powershell -Command \"Start-Sleep -Seconds 5; Start-Process 'http://localhost:5173'\"",
+      "presentation": {
+        "reveal": "never"
+      }
+    },
+    {
+      "label": "Run Full Stack",
+      "dependsOn": [
+        "Run Backend (nodemon)",
+        "Run Frontend (vite)",
+        "Open Browser"
+      ],
+      "dependsOrder": "parallel",
+      "runOptions": {
+        "runOn": "folderOpen"
+      }
+    }
+  ]
+}
