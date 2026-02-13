@@ -1,7 +1,6 @@
 import { useState, useRef } from "react";
-import { Download, Upload as UploadIcon, FileSpreadsheet, ChevronLeft, RefreshCw, FileText, Database, Share2, Info } from "lucide-react";
+import { Download, Upload as UploadIcon, FileSpreadsheet, ChevronLeft, Database, Info } from "lucide-react";
 import toast from 'react-hot-toast';
-import { motion } from "framer-motion";
 import Header from "../components/common/Header";
 import Footer from "../components/common/Footer";
 import UploadForm from "../components/forms/UploadForm";
@@ -22,13 +21,10 @@ const Upload = () => {
   const tableRef = useRef();
 
   const handleSuccess = () => {
-    // Trigger table refresh
     setRefreshTrigger((prev) => prev + 1);
   };
 
   const onFormChange = (formattedData) => {
-    // This callback receives cleaned data from the form
-    // We only want to trigger the side panel if significant fields have data
     const filters = {};
     let hasSearchable = false;
 
@@ -53,7 +49,6 @@ const Upload = () => {
 
     if (formattedData.designation && formattedData.designation.length > 0) {
       filters.designation = formattedData.designation;
-      // Allow designation to trigger if it's selected
       if (formattedData.designation !== "Select Designation") {
         hasSearchable = true;
       }
@@ -102,130 +97,106 @@ const Upload = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8FAFC] font-sans">
+    <div className="min-h-screen flex flex-col bg-[#FAFBFD]">
       <Header />
 
-      <main className="flex-grow container mx-auto px-4 pt-32 pb-8 lg:pb-12 max-w-[1600px]">
+      <main className="flex-grow container mx-auto px-4 pt-28 pb-8 lg:pb-12 max-w-[1600px]">
 
-
-
-        {/* Header Action Area */}
-        <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-6 mb-10">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-slate-900 font-heading tracking-tight">
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
               Submit Patent Entry
             </h1>
-            <p className="text-slate-500 mt-2 text-lg">
+            <p className="text-slate-400 mt-1">
               Enter details for a new patent or publication record.
             </p>
           </div>
 
           <button
             onClick={() => window.location.href = '/'}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-all shadow-sm"
+            className="flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-all"
           >
-            <ChevronLeft size={18} />
+            <ChevronLeft size={16} />
             Back to Home
           </button>
         </div>
 
         {/* Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-          {/* Main Form Area */}
+          {/* Main Form */}
           <div className="lg:col-span-8 space-y-6">
             <UploadForm onSuccess={handleSuccess} onFormChange={onFormChange} />
           </div>
 
-          {/* Sidebar Actions */}
-          <div className="lg:col-span-4 space-y-6 sticky top-8 h-fit">
+          {/* Sidebar */}
+          <div className="lg:col-span-4 space-y-5 sticky top-24 h-fit">
 
-            {/* Quick Actions Card */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm"
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-                  <Database size={20} />
+            {/* Bulk Operations */}
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+              <div className="flex items-center gap-2.5 mb-5">
+                <div className="p-1.5 bg-slate-100 text-slate-600 rounded-lg">
+                  <Database size={18} />
                 </div>
-                <h3 className="font-bold text-slate-800">
-                  Bulk Operations
-                </h3>
+                <h3 className="font-bold text-slate-800 text-sm">Bulk Operations</h3>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <button
                   onClick={() => setIsBulkImportOpen(true)}
-                  className="w-full flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/50 hover:shadow-sm transition-all group text-left"
+                  className="w-full flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 hover:border-slate-200 hover:bg-slate-100/50 transition-all text-left"
                 >
-                  <div className="w-10 h-10 rounded-full bg-white text-indigo-600 flex items-center justify-center shrink-0 shadow-sm group-hover:scale-110 transition-transform">
-                    <UploadIcon size={18} />
+                  <div className="w-8 h-8 rounded-lg bg-white text-[#1B2845] flex items-center justify-center shrink-0 shadow-sm">
+                    <UploadIcon size={15} />
                   </div>
                   <div>
-                    <span className="block font-bold text-slate-800 text-sm">Bulk Import</span>
-                    <span className="text-xs text-slate-500 group-hover:text-indigo-600">Upload via Excel file</span>
+                    <span className="block font-semibold text-slate-700 text-sm">Bulk Import</span>
+                    <span className="text-xs text-slate-400">Upload via Excel file</span>
                   </div>
                 </button>
 
                 <button
                   onClick={handleDownloadTemplate}
-                  className="w-full flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:border-teal-200 hover:bg-teal-50/50 hover:shadow-sm transition-all group text-left"
+                  className="w-full flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 hover:border-slate-200 hover:bg-slate-100/50 transition-all text-left"
                 >
-                  <div className="w-10 h-10 rounded-full bg-white text-teal-600 flex items-center justify-center shrink-0 shadow-sm group-hover:scale-110 transition-transform">
-                    <FileSpreadsheet size={18} />
+                  <div className="w-8 h-8 rounded-lg bg-white text-[#1B2845] flex items-center justify-center shrink-0 shadow-sm">
+                    <FileSpreadsheet size={15} />
                   </div>
                   <div>
-                    <span className="block font-bold text-slate-800 text-sm">Download Template</span>
-                    <span className="text-xs text-slate-500 group-hover:text-teal-600">Get standard Excel format</span>
+                    <span className="block font-semibold text-slate-700 text-sm">Download Template</span>
+                    <span className="text-xs text-slate-400">Get standard Excel format</span>
                   </div>
                 </button>
 
-                <div className="my-2 border-t border-slate-100" />
+                <div className="my-1.5 border-t border-slate-100" />
 
                 <a
                   href="/form/downloadExcel"
                   target="_blank"
                   download
-                  className="w-full flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:border-emerald-200 hover:bg-emerald-50/50 hover:shadow-sm transition-all group text-left"
+                  className="w-full flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 hover:border-slate-200 hover:bg-slate-100/50 transition-all text-left"
                 >
-                  <div className="w-10 h-10 rounded-full bg-white text-emerald-600 flex items-center justify-center shrink-0 shadow-sm group-hover:scale-110 transition-transform">
-                    <Download size={18} />
+                  <div className="w-8 h-8 rounded-lg bg-white text-[#1B2845] flex items-center justify-center shrink-0 shadow-sm">
+                    <Download size={15} />
                   </div>
                   <div>
-                    <span className="block font-bold text-slate-800 text-sm">Export Database</span>
-                    <span className="text-xs text-slate-500 group-hover:text-emerald-600">Download all records (CSV)</span>
+                    <span className="block font-semibold text-slate-700 text-sm">Export Database</span>
+                    <span className="text-xs text-slate-400">Download all records</span>
                   </div>
                 </a>
               </div>
-            </motion.div>
+            </div>
 
-            {/* Help / Info Card */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 }}
-              className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-2xl text-white shadow-lg relative overflow-hidden"
-            >
-              {/* Decorative circles */}
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl -mr-10 -mt-10"></div>
-
-              <div className="flex items-center gap-2 mb-3 relative z-10">
-                <Info size={18} className="text-blue-300" />
-                <h3 className="font-bold text-base">Submission Guide</h3>
+            {/* Info Card */}
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+              <div className="flex items-start gap-2.5">
+                <Info size={16} className="text-slate-400 mt-0.5 shrink-0" />
+                <p className="text-sm text-slate-500 leading-relaxed">
+                  Complete all required fields marked with (*). The side panel activates automatically to check for duplicates as you type.
+                </p>
               </div>
-
-              <p className="text-slate-300 text-sm leading-relaxed mb-4 relative z-10">
-                Please complete all fields marked with an asterisk (*). To avoid duplicates, check the side panel which activates automatically as you type.
-              </p>
-
-              <div className="text-xs font-semibold bg-white/10 backdrop-blur-md rounded-lg p-3 border border-white/10 relative z-10 flex items-start gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1 shrink-0"></div>
-                Use "Bulk Import" for uploading historical data from previous academic years.
-              </div>
-            </motion.div>
+            </div>
 
           </div>
         </div>
@@ -246,9 +217,9 @@ const Upload = () => {
         title="Duplicate Check"
         onClear={handleClearPanel}
       >
-        <div className="mb-4 text-sm text-slate-600 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 flex gap-3 items-center">
-          <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
-          <span>Real-time checking for similar entries...</span>
+        <div className="mb-4 text-sm text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-200 flex gap-2.5 items-center">
+          <div className="w-1.5 h-1.5 bg-[#1B2845] rounded-full animate-pulse" />
+          <span>Checking for similar entries...</span>
         </div>
         <PublicationsTable
           ref={tableRef}

@@ -78,30 +78,30 @@ const SidePanel = ({ isOpen, onClose, title, children, onClear }) => {
                     {/* Resize Handle (Left - Width) */}
                     <div
                         onMouseDown={startResizeWidth}
-                        className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-indigo-500/50 transition-colors z-50 flex items-center justify-center group"
+                        className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-slate-400/30 transition-colors z-50 flex items-center justify-center group"
                     >
-                        <div className="h-8 w-1 bg-slate-300 rounded-full group-hover:bg-indigo-500 transition-colors" />
+                        <div className="h-8 w-1 bg-slate-300 rounded-full group-hover:bg-slate-500 transition-colors" />
                     </div>
 
                     {/* Resize Handle (Bottom - Height) */}
                     <div
                         onMouseDown={startResizeHeight}
-                        className="absolute left-0 bottom-0 right-0 h-1.5 cursor-ns-resize hover:bg-indigo-500/50 transition-colors z-50 flex items-center justify-center group"
+                        className="absolute left-0 bottom-0 right-0 h-1.5 cursor-ns-resize hover:bg-slate-400/30 transition-colors z-50 flex items-center justify-center group"
                     >
-                        <div className="w-8 h-1 bg-slate-300 rounded-full group-hover:bg-indigo-500 transition-colors" />
+                        <div className="w-8 h-1 bg-slate-300 rounded-full group-hover:bg-slate-500 transition-colors" />
                     </div>
 
                     {/* Header */}
                     <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50 shrink-0">
                         <div className="flex items-center gap-2 text-slate-700 ml-2">
-                            <Search className="w-5 h-5 text-indigo-500" />
+                            <Search className="w-5 h-5 text-slate-500" />
                             <h2 className="font-bold text-lg">{title}</h2>
                         </div>
                         <div className="flex items-center gap-2">
                             {onClear && (
                                 <button
                                     onClick={onClear}
-                                    className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-indigo-600 hover:bg-slate-200/50 rounded-lg transition-colors border border-slate-200 hover:border-indigo-200"
+                                    className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
                                 >
                                     Clear Search
                                 </button>

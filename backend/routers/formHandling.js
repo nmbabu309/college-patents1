@@ -39,6 +39,12 @@ const upload = multer({
   }
 });
 
+// Accept two file fields: published doc (mandatory) + grant doc (optional)
+const uploadFields = upload.fields([
+  { name: 'documentFile', maxCount: 1 },
+  { name: 'grantDocumentFile', maxCount: 1 }
+]);
+
 
 
 // Helper functions removed - role is now in JWT token
@@ -132,30 +138,34 @@ const validatePatentDates = (patentType, filingDate, grantingDate, publishingDat
 
 
 
-router.post("/formEntry", verifyToken, requireAnyAdmin, upload.single('documentFile'), async (req, res) => {
+router.post("/formEntry", verifyToken, requireAnyAdmin, uploadFields, async (req, res) => {
   const {
     email,
     facultyName,
     designation,
     department,
+    caste,
     coApplicants,
     patentId,
     patentTitle,
     patentType,
     approvalType,
-    dateOfApproval,
     filingDate,
     grantingDate,
     publishingDate,
     authors,
   } = req.body;
 
-  // Require uploaded PDF for new entries
-  if (!req.file) {
-    return res.status(400).json({ message: "Document PDF is required." });
+  // Require uploaded PDF for published document (mandatory)
+  const docFile = req.files?.documentFile?.[0];
+  const grantFile = req.files?.grantDocumentFile?.[0];
+
+  if (!docFile) {
+    return res.status(400).json({ message: "Proof of Publish (PDF) is required." });
   }
 
-  const finalDocumentLink = `/uploads/${req.file.filename}`;
+  const finalDocumentLink = `/uploads/${docFile.filename}`;
+  const finalGrantDocLink = grantFile ? `/uploads/${grantFile.filename}` : null;
 
   // Default patentType to 'Utility' if not provided (backward compatibility)
   const finalPatentType = patentType || 'Utility';
@@ -187,65 +197,26 @@ router.post("/formEntry", verifyToken, requireAnyAdmin, upload.single('documentF
       return res.status(409).json({ message: "Duplicate entry: You have already submitted this patent." });
     }
 
-    // Check for exact duplicate (all fields match for same user)
-    const [exactDuplicate] = await db.query(
-      `SELECT 1 FROM patents WHERE 
-        email = ? AND 
-        facultyName = ? AND 
-        designation = ? AND 
-        department = ? AND 
-        COALESCE(coApplicants, '') = ? AND 
-        patentId = ? AND 
-        patentTitle = ? AND 
-        patentType = ? AND 
-        approvalType = ? AND 
-        COALESCE(dateOfApproval, '') = ? AND 
-        COALESCE(filingDate, '') = ? AND 
-        COALESCE(grantingDate, '') = ? AND 
-        COALESCE(publishingDate, '') = ? AND 
-        COALESCE(documentLink, '') = ? AND
-        COALESCE(authors, '') = ?`,
-      [
-        email,
-        facultyName,
-        designation,
-        department,
-        coApplicants || '',
-        patentId,
-        patentTitle,
-        finalPatentType,
-        approvalType,
-        formatDateForMySQL(dateOfApproval) || '',
-        formatDateForMySQL(filingDate) || '',
-        formatDateForMySQL(grantingDate) || '',
-        formatDateForMySQL(publishingDate) || '',
-        finalDocumentLink || '',
-        authors || ''
-      ]
-    );
-    if (exactDuplicate.length > 0) {
-      return res.status(409).json({ message: "Exact duplicate entry detected. An identical entry with all the same information already exists." });
-    }
-
     await db.query(
       `INSERT INTO patents 
-  (email, facultyName, designation, department, coApplicants, patentId, patentTitle, patentType, approvalType, dateOfApproval, filingDate, grantingDate, publishingDate, documentLink, authors)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  (email, facultyName, designation, department, caste, coApplicants, patentId, patentTitle, patentType, approvalType, filingDate, grantingDate, publishingDate, documentLink, grantDocumentLink, authors)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         email,
         facultyName,
         designation,
         department,
+        caste || null,
         coApplicants,
         patentId,
         patentTitle,
         finalPatentType,
-        approvalType,
-        formatDateForMySQL(dateOfApproval),
+        approvalType || 'Published', // Default to Published if not provided
         formatDateForMySQL(filingDate),
         formatDateForMySQL(grantingDate),
         formatDateForMySQL(publishingDate),
         finalDocumentLink,
+        finalGrantDocLink,
         authors
       ]
     );
@@ -286,16 +257,17 @@ router.put("/formEntryBatchUpdate", verifyToken, requireAnyAdmin, async (req, re
         facultyName = COALESCE(?, facultyName),
         designation = COALESCE(?, designation),
         department = COALESCE(?, department),
+        caste = COALESCE(?, caste),
         coApplicants = COALESCE(?, coApplicants),
         patentId = COALESCE(?, patentId),
         patentTitle = COALESCE(?, patentTitle),
         patentType = COALESCE(?, patentType),
         approvalType = COALESCE(?, approvalType),
-        dateOfApproval = COALESCE(?, dateOfApproval),
         filingDate = COALESCE(?, filingDate),
         grantingDate = COALESCE(?, grantingDate),
         publishingDate = COALESCE(?, publishingDate),
         documentLink = COALESCE(?, documentLink),
+        grantDocumentLink = COALESCE(?, grantDocumentLink),
         authors = COALESCE(?, authors)
       WHERE id = ?
     `;
@@ -335,16 +307,17 @@ router.put("/formEntryBatchUpdate", verifyToken, requireAnyAdmin, async (req, re
         row.facultyName ?? null,
         row.designation ?? null,
         row.department ?? null,
+        row.caste ?? null,
         row.coApplicants ?? null,
         row.patentId ?? null,
         row.patentTitle ?? null,
         patentType ?? null,
         row.approvalType ?? null,
-        formatDateForMySQL(row.dateOfApproval ?? null),
         formatDateForMySQL(row.filingDate ?? null),
         formatDateForMySQL(row.grantingDate ?? null),
         formatDateForMySQL(row.publishingDate ?? null),
         row.documentLink ?? null,
+        row.grantDocumentLink ?? null,
         row.authors ?? null,
         row.id
       ]);
@@ -376,23 +349,22 @@ router.put("/formEntryBatchUpdate", verifyToken, requireAnyAdmin, async (req, re
   }
 });
 
-router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, upload.single('documentFile'), async (req, res) => {
+router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async (req, res) => {
   const {
     id,
     email,
     facultyName,
     designation,
     department,
+    caste,
     coApplicants,
     patentId,
     patentTitle,
     patentType,
     approvalType,
-    dateOfApproval,
     filingDate,
     grantingDate,
     publishingDate,
-    documentLink,
     authors,
   } = req.body;
 
@@ -400,15 +372,12 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, upload.single('docu
 
   try {
     // Fetch existing entry
-    const [rows] = await db.query("SELECT email, documentLink, patentType, department FROM patents WHERE id = ?", [id]);
+    const [rows] = await db.query("SELECT email, documentLink, grantDocumentLink, patentType, department FROM patents WHERE id = ?", [id]);
     const entry = rows[0];
 
     if (!entry) {
       return res.status(404).json({ message: "Patent not found" });
     }
-
-    const isSuperUser = req.user.role === 'super_admin';
-    const isOwner = entry.email === userEmail;
 
     // Check department access for sub-admins
     if (req.user.role === 'sub_admin') {
@@ -428,17 +397,33 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, upload.single('docu
       return res.status(400).json({ message: dateValidation.message });
     }
 
-    // Determine final documentLink: prefer uploaded file, then provided documentLink, otherwise keep existing
+    // Determine final documentLink: prefer uploaded file, otherwise keep existing
+    const docFile = req.files?.documentFile?.[0];
     let finalDocumentLink = entry.documentLink;
-    if (req.file) {
-      finalDocumentLink = `/uploads/${req.file.filename}`;
+    if (docFile) {
+      finalDocumentLink = `/uploads/${docFile.filename}`;
       try {
-        if (entry && entry.documentLink && entry.documentLink.startsWith('/uploads/')) {
+        if (entry.documentLink?.startsWith('/uploads/')) {
           const oldPath = path.join(__dirname, '..', entry.documentLink.replace(/^\/+/, ''));
           await fs.promises.unlink(oldPath).catch(() => { });
         }
       } catch (err) {
-        console.error('Failed to remove old file:', err);
+        console.error('Failed to remove old published doc:', err);
+      }
+    }
+
+    // Determine final grantDocumentLink
+    const grantFile = req.files?.grantDocumentFile?.[0];
+    let finalGrantDocLink = entry.grantDocumentLink;
+    if (grantFile) {
+      finalGrantDocLink = `/uploads/${grantFile.filename}`;
+      try {
+        if (entry.grantDocumentLink?.startsWith('/uploads/')) {
+          const oldPath = path.join(__dirname, '..', entry.grantDocumentLink.replace(/^\/+/, ''));
+          await fs.promises.unlink(oldPath).catch(() => { });
+        }
+      } catch (err) {
+        console.error('Failed to remove old grant doc:', err);
       }
     }
 
@@ -449,16 +434,17 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, upload.single('docu
         facultyName = COALESCE(?, facultyName),
         designation = COALESCE(?, designation),
         department = COALESCE(?, department),
+        caste = COALESCE(?, caste),
         coApplicants = COALESCE(?, coApplicants),
         patentId = COALESCE(?, patentId),
         patentTitle = COALESCE(?, patentTitle),
         patentType = COALESCE(?, patentType),
         approvalType = COALESCE(?, approvalType),
-        dateOfApproval = COALESCE(?, dateOfApproval),
         filingDate = COALESCE(?, filingDate),
         grantingDate = COALESCE(?, grantingDate),
         publishingDate = COALESCE(?, publishingDate),
         documentLink = COALESCE(?, documentLink),
+        grantDocumentLink = COALESCE(?, grantDocumentLink),
         authors = COALESCE(?, authors)
       WHERE id = ?
     `,
@@ -467,16 +453,17 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, upload.single('docu
         facultyName ?? null,
         designation ?? null,
         department ?? null,
+        caste ?? null,
         coApplicants ?? null,
         patentId ?? null,
         patentTitle ?? null,
         finalPatentType ?? null,
         approvalType ?? null,
-        formatDateForMySQL(dateOfApproval ?? null),
         formatDateForMySQL(filingDate ?? null),
         formatDateForMySQL(grantingDate ?? null),
         formatDateForMySQL(publishingDate ?? null),
         finalDocumentLink ?? null,
+        finalGrantDocLink ?? null,
         authors ?? null,
         id
       ]
@@ -499,7 +486,7 @@ router.delete("/deleteEntry/:id", verifyToken, requireAnyAdmin, async (req, res)
   const userEmail = req.user.userEmail;
   try {
     // Check ownership
-    const [rows] = await db.query("SELECT email, documentLink, department FROM patents WHERE id = ?", [id]);
+    const [rows] = await db.query("SELECT email, documentLink, grantDocumentLink, department FROM patents WHERE id = ?", [id]);
     const entry = rows[0];
 
     if (!entry) {
@@ -516,10 +503,14 @@ router.delete("/deleteEntry/:id", verifyToken, requireAnyAdmin, async (req, res)
     }
 
     // 2. Delete
-    // If file stored locally, remove it
+    // If files stored locally, remove them
     try {
-      if (entry && entry.documentLink && entry.documentLink.startsWith('/uploads/')) {
+      if (entry.documentLink?.startsWith('/uploads/')) {
         const filePath = path.join(__dirname, '..', entry.documentLink.replace(/^\/+/, ''));
+        await fs.promises.unlink(filePath).catch(() => { });
+      }
+      if (entry.grantDocumentLink?.startsWith('/uploads/')) {
+        const filePath = path.join(__dirname, '..', entry.grantDocumentLink.replace(/^\/+/, ''));
         await fs.promises.unlink(filePath).catch(() => { });
       }
     } catch (err) {
@@ -659,7 +650,7 @@ router.get("/downloadExcel", verifyToken, async (req, res) => {
     const worksheet = workbook.addWorksheet("Patents");
 
     // 1. Add Title Row
-    worksheet.mergeCells("A1:P1");
+    worksheet.mergeCells("A1:Q1");
     const titleRow = worksheet.getRow(1);
     titleRow.getCell(1).value = "FACULTY PATENTS";
     titleRow.getCell(1).font = {
@@ -676,19 +667,20 @@ router.get("/downloadExcel", verifyToken, async (req, res) => {
       { header: "ID", key: "id", width: 10 },
       { header: "Email", key: "email", width: 30 },
       { header: "Faculty Name", key: "facultyName", width: 25 },
-      { header: "Designation", key: "designation", width: 25 },
       { header: "Department", key: "department", width: 20 },
-      { header: "Co-Applicants", key: "coApplicants", width: 30 },
+      { header: "Designation", key: "designation", width: 25 },
+      { header: "Caste", key: "caste", width: 10 },
       { header: "Patent ID", key: "patentId", width: 20 },
       { header: "Patent Title", key: "patentTitle", width: 40 },
-      { header: "Patent Type", key: "patentType", width: 15 },
-      { header: "Approval Type", key: "approvalType", width: 20 },
-      { header: "Date of Approval", key: "dateOfApproval", width: 20 },
-      { header: "Filing Date", key: "filingDate", width: 20 },
-      { header: "Granting Date", key: "grantingDate", width: 20 },
-      { header: "Publishing Date", key: "publishingDate", width: 20 },
-      { header: "Document Link", key: "documentLink", width: 40 },
       { header: "Authors", key: "authors", width: 25 },
+      { header: "Co-Applicants", key: "coApplicants", width: 30 },
+      { header: "Patent Type", key: "patentType", width: 15 },
+      { header: "Approval Type", key: "approvalType", width: 15 },
+      { header: "Filing Date", key: "filingDate", width: 20 },
+      { header: "Publishing Date", key: "publishingDate", width: 20 },
+      { header: "Granting Date", key: "grantingDate", width: 20 },
+      { header: "Proof of Publish", key: "documentLink", width: 40 },
+      { header: "Proof of Grant", key: "grantDocumentLink", width: 40 },
     ];
 
     // Set widths
@@ -762,7 +754,7 @@ router.get("/downloadTemplate", async (req, res) => {
     const worksheet = workbook.addWorksheet("Patents");
 
     // 1. Add Title Row
-    worksheet.mergeCells("A1:P1");
+    worksheet.mergeCells("A1:O1");
     const titleRow = worksheet.getRow(1);
     titleRow.getCell(1).value = "FACULTY PATENTS";
     titleRow.getCell(1).font = {
@@ -778,19 +770,20 @@ router.get("/downloadTemplate", async (req, res) => {
     const columns = [
       { header: "Email (faculty@domain.com)", width: 35 },
       { header: "Faculty Name (Dr. John Doe)", width: 30 },
-      { header: "Designation (Professor/Associate Professor/etc)", width: 40 },
       { header: "Department (CSE/ECE/EEE/MECH/CIVIL/IT/AIML/CSD/CSM/FED/MBA)", width: 60 },
-      { header: "Co-Applicants (Name1, Name2, Name3)", width: 35 },
-      { header: "Authors (1st Author/2nd Author/3rd Author/4th Author/5th Author/Others)", width: 60 },
+      { header: "Designation (Professor/Associate Professor/etc)", width: 40 },
+      { header: "Caste (SC/ST/OC/OBC/BC)", width: 25 },
       { header: "Patent ID (e.g. US1234567)", width: 25 },
       { header: "Patent Title", width: 45 },
+      { header: "Authors (1st Author/2nd Author/3rd Author/4th Author/5th Author/Others)", width: 60 },
+      { header: "Co-Applicants (Name1, Name2, Name3)", width: 35 },
       { header: "Patent Type (Utility or Design)", width: 30 },
-      { header: "Approval Type (Granted or Published)", width: 35 },
-      { header: "Date of Approval (YYYY-MM-DD)", width: 40 },
+      { header: "Approval Type (Granted or Published)", width: 30 },
       { header: "Filing Date (YYYY-MM-DD) - REQUIRED", width: 40 },
-      { header: "Granting Date (YYYY-MM-DD) - REQUIRED", width: 40 },
-      { header: "Publishing Date (YYYY-MM-DD) - REQUIRED for Design, OPTIONAL for Utility", width: 60 },
-      { header: "Document Link (https://...)", width: 45 },
+      { header: "Publishing Date (YYYY-MM-DD)", width: 60 },
+      { header: "Granting Date (YYYY-MM-DD)", width: 40 },
+      { header: "Proof of Publish Link (https://...)", width: 45 },
+      { header: "Proof of Grant Link (https://...)", width: 45 },
     ];
 
     // Set widths

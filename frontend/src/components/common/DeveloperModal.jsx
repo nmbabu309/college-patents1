@@ -26,12 +26,12 @@ const DeveloperModal = ({ isOpen, onClose }) => {
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
-            className="relative bg-white rounded-2xl shadow-premium p-8 max-w-4xl w-full text-center overflow-hidden"
+            className="relative bg-white rounded-xl shadow-2xl p-8 max-w-4xl w-full text-center overflow-hidden"
           >
-            <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-primary to-secondary opacity-10" />
+            <div className="absolute top-0 left-0 w-full h-20 bg-gradient-to-r from-[#1B2845] to-[#243656] opacity-[0.06]" />
 
             <div className="relative z-10">
-              <div className="w-16 h-16 bg-white rounded-full shadow-lg mx-auto flex items-center justify-center mb-6 text-primary">
+              <div className="w-14 h-14 bg-[#1B2845] rounded-xl shadow-lg mx-auto flex items-center justify-center mb-6 text-[#C8A96E]">
                 <Code size={32} />
               </div>
 

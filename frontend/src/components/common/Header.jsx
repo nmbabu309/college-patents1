@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogIn, LogOut, Upload, Menu, X, User, Building2, Phone, Mail, MapPin, Award, GraduationCap, ExternalLink } from 'lucide-react';
+import { LogIn, LogOut, Upload, Menu, X, Building2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import LoginModal from '../auth/LoginModal';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -20,101 +20,93 @@ const Header = () => {
 
   return (
     <>
-      {/* MAIN HEADER - Fixed */}
-      <header className="fixed top-0 left-0 right-0 bg-white border-b-4 border-[#d4a574] shadow-lg z-50">
-
-
-        {/* MAIN NAV */}
+      <header className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-b border-slate-200 shadow-sm z-50">
         <div className="w-full py-3">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
 
-            {/* Logo Section */}
-            <Link to="/" className="flex items-center gap-3 group relative z-10">
-              <div className="w-12 h-12 md:w-14 md:h-14 bg-white rounded-lg shadow-md border border-[#1e3a5f]/10 flex items-center justify-center p-1.5 transition-transform group-hover:scale-105 duration-300">
+            {/* Logo */}
+            <Link to="/" className="flex items-center gap-3 group">
+              <div className="w-11 h-11 md:w-12 md:h-12 bg-white rounded-lg shadow-sm border border-slate-100 flex items-center justify-center p-1 transition-transform group-hover:scale-105 duration-200">
                 <img src="/NRI-logo.png" alt="NRI Logo" className="w-full h-full object-contain" />
               </div>
               <div className="flex flex-col">
-                <span className="font-bold text-base md:text-xl leading-tight text-[#1e3a5f] tracking-tight">
+                <span className="font-bold text-sm md:text-base leading-tight text-[#1B2845] tracking-tight">
                   NRI Institute of Technology
                 </span>
-                <span className="text-xs text-gray-500 font-medium">
+                <span className="text-xs text-slate-400 font-medium">
                   Publications & Patents
                 </span>
               </div>
             </Link>
 
-
-
             {/* Desktop Nav */}
-            <nav className="hidden md:flex items-center gap-3">
+            <nav className="hidden md:flex items-center gap-2">
               {isAuthenticated ? (
                 <>
                   {isAnyAdmin() && (
-                    <Link to="/admin-dashboard" className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#1e3a5f] hover:bg-[#1e3a5f]/10 rounded-lg transition-colors">
+                    <Link to="/admin-dashboard" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-600 hover:text-[#1B2845] hover:bg-slate-50 rounded-lg transition-colors">
                       <Building2 size={16} />
                       <span>Admin</span>
                     </Link>
                   )}
 
-                  <Link to="/upload" className="flex items-center gap-2 px-4 py-2 bg-[#d4a574] hover:bg-[#c49a6e] text-white text-sm font-semibold rounded-lg shadow-md transition-all">
-                    <Upload size={16} />
+                  <Link to="/upload" className="flex items-center gap-2 px-4 py-2 bg-[#1B2845] hover:bg-[#243656] text-white text-sm font-semibold rounded-lg transition-all">
+                    <Upload size={15} />
                     <span>Submit Patent</span>
                   </Link>
 
-                  <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors" title="Logout">
-                    <LogOut size={18} />
+                  <button onClick={handleLogout} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors ml-1" title="Logout">
+                    <LogOut size={17} />
                   </button>
                 </>
               ) : (
                 <button
                   onClick={() => setIsLoginOpen(true)}
-                  className="flex items-center gap-2 px-5 py-2 bg-[#1e3a5f] hover:bg-[#152a45] text-white text-sm font-semibold rounded-lg shadow-md transition-all"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#1B2845] hover:bg-[#243656] text-white text-sm font-semibold rounded-lg transition-all"
                 >
-                  <LogIn size={18} />
+                  <LogIn size={16} />
                   <span>Login</span>
                 </button>
               )}
             </nav>
 
-
-
             {/* Mobile Menu Button */}
             <button
-              className="md:hidden p-2 text-gray-600 hover:bg-gray-100/50 rounded-lg transition-colors z-20"
+              className="md:hidden p-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             >
-              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+              {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
             </button>
           </div>
         </div>
 
-        {/* Mobile Nav Overlay */}
+        {/* Mobile Nav */}
         <AnimatePresence>
           {isMobileMenuOpen && (
             <motion.div
-              initial={{ opacity: 0, y: -20 }}
+              initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.2 }}
-              className="absolute top-full left-0 w-full bg-white border-b-4 border-[#d4a574] shadow-xl md:hidden"
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.15 }}
+              className="absolute top-full left-0 w-full bg-white border-b border-slate-200 shadow-lg md:hidden"
             >
               <div className="p-4 space-y-2">
                 {isAuthenticated ? (
                   <>
                     {isAnyAdmin() && (
-                      <Link to="/admin-dashboard" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-3 p-3 text-[#1e3a5f] hover:bg-[#1e3a5f]/5 rounded-xl font-medium">
-                        <Building2 size={20} />
+                      <Link to="/admin-dashboard" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-3 p-3 text-slate-700 hover:bg-slate-50 rounded-lg font-medium">
+                        <Building2 size={18} />
                         Admin
                       </Link>
                     )}
 
-                    <Link to="/upload" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-3 p-3 bg-[#d4a574] text-white rounded-xl font-medium">
-                      <Upload size={20} />
+                    <Link to="/upload" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-3 p-3 bg-[#1B2845] text-white rounded-lg font-medium">
+                      <Upload size={18} />
                       Submit Patent
                     </Link>
 
-                    <button onClick={handleLogout} className="flex items-center gap-3 w-full p-3 text-red-600 hover:bg-red-50 rounded-xl font-medium">
-                      <LogOut size={20} />
+                    <button onClick={handleLogout} className="flex items-center gap-3 w-full p-3 text-red-500 hover:bg-red-50 rounded-lg font-medium">
+                      <LogOut size={18} />
                       Logout
                     </button>
                   </>
@@ -124,18 +116,16 @@ const Header = () => {
                       setIsLoginOpen(true);
                       setIsMobileMenuOpen(false);
                     }}
-                    className="flex items-center gap-3 w-full p-4 bg-[#1e3a5f] text-white rounded-xl font-semibold shadow-md"
+                    className="flex items-center gap-3 w-full p-3 bg-[#1B2845] text-white rounded-lg font-semibold"
                   >
-                    <LogIn size={20} />
+                    <LogIn size={18} />
                     Login
                   </button>
                 )}
               </div>
-
             </motion.div>
           )}
         </AnimatePresence>
-
       </header>
 
       <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />

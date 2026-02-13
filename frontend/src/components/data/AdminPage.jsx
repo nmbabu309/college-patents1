@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import {
-    User, Trash2, Plus, Shield, AlertCircle, CheckCircle2,
+    Trash2, Shield, AlertCircle,
     ChevronLeft, ChevronRight, RefreshCw, Activity,
-    Users, Database, Lock, Search, Filter, Key, UserPlus,
-    UserCog, Building2, Eye, EyeOff
+    Users, Lock, Search, Key, UserPlus,
+    Building2, Eye, EyeOff, FileText
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
@@ -12,26 +12,6 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Header from "../common/Header";
 import Footer from "../common/Footer";
-
-// Stat Card Component
-const StatCard = ({ title, value, icon: Icon, color, delay }) => (
-    <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay }}
-        className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group"
-    >
-        <div className="flex justify-between items-start">
-            <div>
-                <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">{title}</p>
-                <h3 className="text-2xl font-bold text-slate-800 group-hover:text-primary transition-colors">{value}</h3>
-            </div>
-            <div className={`p-3 rounded-xl ${color} bg-opacity-10 text-opacity-100`}>
-                <Icon size={20} className={`text-${color.split('-')[1]}-600`} />
-            </div>
-        </div>
-    </motion.div>
-);
 
 const AdminPage = () => {
     const { user, isSuperAdmin, isAnyAdmin, isAuthenticated, loading: authLoading } = useAuth();
@@ -44,9 +24,12 @@ const AdminPage = () => {
     const [loading, setLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
+    // Stats
+    const [stats, setStats] = useState({ totalPatents: 0, totalAdmins: 0, totalLogs: 0, totalDepartments: 0, department: null });
+
     // Admin Creation States
     const [showCreateModal, setShowCreateModal] = useState(false);
-    const [adminType, setAdminType] = useState('sub_admin'); // 'super_admin' or 'sub_admin'
+    const [adminType, setAdminType] = useState('sub_admin');
     const [newAdminEmail, setNewAdminEmail] = useState("");
     const [newAdminPassword, setNewAdminPassword] = useState("");
     const [newAdminDepartment, setNewAdminDepartment] = useState("");
@@ -64,6 +47,14 @@ const AdminPage = () => {
     const [newDepartment, setNewDepartment] = useState("");
     const [isChangingDept, setIsChangingDept] = useState(false);
 
+    // Change My Password States
+    const [showMyPasswordModal, setShowMyPasswordModal] = useState(false);
+    const [currentPassword, setCurrentPassword] = useState("");
+    const [myNewPassword, setMyNewPassword] = useState("");
+    const [isChangingMyPwd, setIsChangingMyPwd] = useState(false);
+    const [showCurrentPwd, setShowCurrentPwd] = useState(false);
+    const [showNewPwd, setShowNewPwd] = useState(false);
+
     const departments = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIML', 'CSD', 'CSM', 'FED', 'MBA'];
 
     useEffect(() => {
@@ -74,6 +65,7 @@ const AdminPage = () => {
 
     useEffect(() => {
         if (!authLoading && isAnyAdmin()) {
+            fetchStats();
             if (isSuperAdmin()) {
                 fetchAdmins();
             }
@@ -83,7 +75,7 @@ const AdminPage = () => {
 
     if (authLoading) return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2845]"></div>
         </div>
     );
 
@@ -102,13 +94,22 @@ const AdminPage = () => {
                     <p className="text-slate-500 mb-8 leading-relaxed">
                         This area is reserved for system administrators. Please contact the IT department if you believe this is an error.
                     </p>
-                    <button onClick={() => navigate("/")} className="w-full py-3 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 transition-colors">
+                    <button onClick={() => navigate("/")} className="w-full py-3 bg-[#1B2845] text-white rounded-xl font-medium hover:bg-[#243656] transition-colors">
                         Return to Home
                     </button>
                 </motion.div>
             </div>
         );
     }
+
+    const fetchStats = async () => {
+        try {
+            const response = await api.get("/admin/stats");
+            setStats(response.data);
+        } catch (err) {
+            console.error("Failed to fetch stats", err);
+        }
+    };
 
     const fetchLogs = async (page = 1, withAnimation = false) => {
         try {
@@ -168,6 +169,7 @@ const AdminPage = () => {
             setNewAdminDepartment("");
             setAdminType('sub_admin');
             fetchAdmins();
+            fetchStats();
         } catch (err) {
             toast.error(err.response?.data?.message || "Failed to create admin");
         } finally {
@@ -220,6 +222,32 @@ const AdminPage = () => {
         }
     };
 
+    const handleChangeMyPassword = async (e) => {
+        e.preventDefault();
+
+        if (!currentPassword || !myNewPassword) {
+            toast.error("Both current and new passwords are required");
+            return;
+        }
+        if (myNewPassword.length < 6) {
+            toast.error("New password must be at least 6 characters");
+            return;
+        }
+
+        try {
+            setIsChangingMyPwd(true);
+            await api.put("/admin/my-password", { currentPassword, newPassword: myNewPassword });
+            toast.success("Password changed successfully");
+            setShowMyPasswordModal(false);
+            setCurrentPassword("");
+            setMyNewPassword("");
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed to change password");
+        } finally {
+            setIsChangingMyPwd(false);
+        }
+    };
+
     const handleDeleteAdmin = async (admin) => {
         if (!window.confirm(`Are you sure you want to delete ${admin.email}?\n\nThis action cannot be undone.`)) return;
 
@@ -227,15 +255,28 @@ const AdminPage = () => {
             await api.delete(`/admin/${admin.id}`);
             toast.success(`Admin ${admin.email} deleted successfully`);
             fetchAdmins();
+            fetchStats();
         } catch (err) {
             toast.error(err.response?.data?.message || "Failed to delete admin");
         }
     };
 
+    // Stat cards data based on role
+    const statCards = isSuperAdmin() ? [
+        { title: "Total Patents", value: stats.totalPatents, icon: FileText, bg: "bg-blue-50", text: "text-blue-600" },
+        { title: "Administrators", value: stats.totalAdmins, icon: Users, bg: "bg-slate-100", text: "text-slate-600" },
+        { title: "Departments", value: stats.totalDepartments, icon: Building2, bg: "bg-amber-50", text: "text-amber-600" },
+        { title: "Audit Events", value: stats.totalLogs, icon: Activity, bg: "bg-emerald-50", text: "text-emerald-600" },
+    ] : [
+        { title: `${stats.department || 'Dept'} Patents`, value: stats.totalPatents, icon: FileText, bg: "bg-blue-50", text: "text-blue-600" },
+        { title: "Your Department", value: stats.department || '—', icon: Building2, bg: "bg-amber-50", text: "text-amber-600" },
+        { title: "Audit Events", value: stats.totalLogs, icon: Activity, bg: "bg-emerald-50", text: "text-emerald-600" },
+    ];
+
     return (
         <div className="min-h-screen bg-[#F8FAFC]">
             <Header />
-            <div className="h-32"></div> {/* Spacer for fixed header */}
+            <div className="h-32"></div>
 
             <main className="max-w-[1600px] mx-auto p-6 lg:p-10 space-y-8">
 
@@ -243,87 +284,84 @@ const AdminPage = () => {
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div>
                         <h1 className="text-3xl font-bold text-slate-900 font-heading tracking-tight sm:text-4xl">
-                            System Administration
+                            Admin Dashboard
                         </h1>
                         <p className="text-slate-500 mt-2 flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                            {isSuperAdmin() ? '👑 Super Admin Access' : '🏢 Sub Admin Access'} • {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                            {isSuperAdmin() ? 'Super Admin' : `Sub Admin • ${stats.department || ''}`} • {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
                         <button
+                            onClick={() => setShowMyPasswordModal(true)}
+                            className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors shadow-sm flex items-center gap-2"
+                        >
+                            <Key size={16} /> Change Password
+                        </button>
+                        <button
                             onClick={() => navigate('/')}
                             className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors shadow-sm flex items-center gap-2"
                         >
-                            <ChevronLeft size={18} /> Exit Dashboard
+                            <ChevronLeft size={18} /> Exit
                         </button>
                     </div>
                 </header>
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <StatCard
-                        title="Active Administrators"
-                        value={admins.length}
-                        icon={Users}
-                        color="bg-indigo-500"
-                        delay={0.1}
-                    />
-                    <StatCard
-                        title="System Events Logged"
-                        value={logs.length > 0 ? "2,540+" : "Loading..."}
-                        icon={Activity}
-                        color="bg-emerald-500"
-                        delay={0.2}
-                    />
-                    <StatCard
-                        title="Security Level"
-                        value="High"
-                        icon={Lock}
-                        color="bg-amber-500"
-                        delay={0.3}
-                    />
-                    <StatCard
-                        title="Database Status"
-                        value="Healthy"
-                        icon={Database}
-                        color="bg-blue-500"
-                        delay={0.4}
-                    />
+                {/* Stats Grid — real data */}
+                <div className={`grid grid-cols-1 md:grid-cols-2 ${isSuperAdmin() ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-5`}>
+                    {statCards.map((card, i) => (
+                        <motion.div
+                            key={card.title}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.4, delay: i * 0.08 }}
+                            className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-all"
+                        >
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">{card.title}</p>
+                                    <h3 className="text-2xl font-bold text-slate-800">{card.value}</h3>
+                                </div>
+                                <div className={`p-3 rounded-xl ${card.bg}`}>
+                                    <card.icon size={20} className={card.text} />
+                                </div>
+                            </div>
+                        </motion.div>
+                    ))}
                 </div>
 
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
 
                     {/* Left Column: Admin Management */}
-                    <div className="space-y-8 xl:col-span-1">
+                    <div className="space-y-6 xl:col-span-1">
 
                         {/* Create Admin Card - Super Admin Only */}
                         {isSuperAdmin() && (
                             <motion.div
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: 0.5 }}
-                                className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"
+                                transition={{ delay: 0.4 }}
+                                className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden"
                             >
-                                <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-indigo-50 to-blue-50">
-                                    <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                        <UserPlus size={20} className="text-indigo-600" />
+                                <div className="p-5 border-b border-slate-100 bg-slate-50/50">
+                                    <h2 className="text-base font-bold text-slate-700 flex items-center gap-2">
+                                        <UserPlus size={18} className="text-slate-500" />
                                         Admin Management
                                     </h2>
                                 </div>
-                                <div className="p-6 space-y-3">
+                                <div className="p-5 space-y-3">
                                     <button
                                         onClick={() => { setAdminType('super_admin'); setShowCreateModal(true); }}
-                                        className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                                        className="w-full py-2.5 bg-[#1B2845] text-white rounded-xl font-semibold shadow-sm hover:bg-[#243656] transition-all flex items-center justify-center gap-2 text-sm"
                                     >
-                                        <Shield size={18} />
+                                        <Shield size={16} />
                                         Create Super Admin
                                     </button>
                                     <button
                                         onClick={() => { setAdminType('sub_admin'); setShowCreateModal(true); }}
-                                        className="w-full py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-xl font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                                        className="w-full py-2.5 bg-[#C8A96E] text-[#1B2845] rounded-xl font-semibold shadow-sm hover:bg-[#B8994E] transition-all flex items-center justify-center gap-2 text-sm"
                                     >
-                                        <Building2 size={18} />
+                                        <Building2 size={16} />
                                         Create Sub Admin
                                     </button>
                                 </div>
@@ -334,11 +372,11 @@ const AdminPage = () => {
                         <motion.div
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: 0.6 }}
-                            className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"
+                            transition={{ delay: 0.5 }}
+                            className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden"
                         >
-                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                                <h2 className="text-lg font-bold text-slate-800">Administrators</h2>
+                            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                <h2 className="text-base font-bold text-slate-700">Administrators</h2>
                                 <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-xs font-bold">{admins.length}</span>
                             </div>
                             <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto custom-scrollbar">
@@ -349,14 +387,14 @@ const AdminPage = () => {
                                         <div key={admin.id} className="p-4 hover:bg-slate-50 transition-colors group">
                                             <div className="flex items-start justify-between gap-3">
                                                 <div className="flex items-start gap-3 flex-1 min-w-0">
-                                                    <div className={`w-10 h-10 rounded-full ${admin.role === 'super_admin' ? 'bg-gradient-to-br from-purple-100 to-indigo-200 border-purple-300' : 'bg-gradient-to-br from-slate-100 to-slate-200 border-slate-300'} border-2 flex items-center justify-center text-slate-700 font-bold shadow-inner`}>
+                                                    <div className={`w-10 h-10 rounded-full ${admin.role === 'super_admin' ? 'bg-[#1B2845] text-white' : 'bg-[#C8A96E]/20 text-[#1B2845]'} flex items-center justify-center font-bold text-sm shadow-sm`}>
                                                         {admin.email.charAt(0).toUpperCase()}
                                                     </div>
                                                     <div className="flex flex-col min-w-0 flex-1">
                                                         <span className="text-sm font-semibold text-slate-700 truncate">{admin.email}</span>
                                                         <div className="flex items-center gap-2 mt-1">
-                                                            <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border ${admin.role === 'super_admin' ? 'bg-purple-50 text-purple-600 border-purple-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
-                                                                {admin.role === 'super_admin' ? '👑 Super Admin' : '🏢 Sub Admin'}
+                                                            <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border ${admin.role === 'super_admin' ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                                                                {admin.role === 'super_admin' ? 'Super Admin' : 'Sub Admin'}
                                                             </span>
                                                             {admin.department && (
                                                                 <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">
@@ -372,7 +410,7 @@ const AdminPage = () => {
                                                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                         <button
                                                             onClick={() => { setSelectedAdmin(admin); setShowPasswordModal(true); }}
-                                                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                                            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all"
                                                             title="Reset Password"
                                                         >
                                                             <Key size={16} />
@@ -380,7 +418,7 @@ const AdminPage = () => {
                                                         {admin.role === 'sub_admin' && (
                                                             <button
                                                                 onClick={() => { setSelectedAdmin(admin); setNewDepartment(admin.department || ''); setShowDepartmentModal(true); }}
-                                                                className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                                                                className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
                                                                 title="Change Department"
                                                             >
                                                                 <Building2 size={16} />
@@ -397,7 +435,7 @@ const AdminPage = () => {
                                                 )}
 
                                                 {admin.email === user?.userEmail && (
-                                                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-600 px-2 py-1 rounded-md border border-emerald-200">YOU</span>
+                                                    <span className="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2 py-1 rounded-md border border-emerald-200">YOU</span>
                                                 )}
                                             </div>
                                         </div>
@@ -411,22 +449,19 @@ const AdminPage = () => {
                             <motion.div
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: 0.7 }}
-                                className="bg-white rounded-2xl shadow-sm border border-red-100 overflow-hidden group"
+                                transition={{ delay: 0.6 }}
+                                className="bg-white rounded-2xl shadow-sm border border-red-100 overflow-hidden"
                             >
-                                <div className="p-6 bg-red-50/50 border-b border-red-100">
-                                    <h2 className="text-lg font-bold text-red-900 flex items-center gap-2">
-                                        <AlertCircle size={20} className="text-red-500" />
-                                        Critical Actions
+                                <div className="p-5 bg-red-50/50 border-b border-red-100">
+                                    <h2 className="text-base font-bold text-red-800 flex items-center gap-2">
+                                        <AlertCircle size={18} className="text-red-500" />
+                                        Danger Zone
                                     </h2>
                                 </div>
-                                <div className="p-6">
-                                    <div className="mb-4">
-                                        <h4 className="text-sm font-bold text-slate-700">Database Reset</h4>
-                                        <p className="text-xs text-slate-500 mt-1">
-                                            Permanently wipe all patent entries. Before proceeding, ensure a backup has been exported.
-                                        </p>
-                                    </div>
+                                <div className="p-5">
+                                    <p className="text-xs text-slate-500 mb-3">
+                                        Permanently wipe all patent entries. Ensure a backup has been exported first.
+                                    </p>
                                     <button
                                         onClick={() => {
                                             const confirm = window.prompt("Type 'DELETE' to confirm destructive action:");
@@ -435,11 +470,12 @@ const AdminPage = () => {
                                                     .then(() => {
                                                         toast.success("Database reset complete");
                                                         fetchLogs();
+                                                        fetchStats();
                                                     })
                                                     .catch(err => toast.error("Reset failed"));
                                             }
                                         }}
-                                        className="w-full py-2.5 bg-white border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 hover:border-red-300 transition-all flex items-center justify-center gap-2"
+                                        className="w-full py-2.5 bg-white border border-red-200 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-50 hover:border-red-300 transition-all flex items-center justify-center gap-2"
                                     >
                                         <Trash2 size={16} />
                                         Reset Database
@@ -453,49 +489,47 @@ const AdminPage = () => {
                     <motion.div
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.6 }}
-                        className="bg-white rounded-3xl shadow-lg shadow-slate-200/50 border border-slate-100 xl:col-span-2 flex flex-col h-full overflow-hidden"
+                        transition={{ delay: 0.5 }}
+                        className="bg-white rounded-2xl shadow-sm border border-slate-200/80 xl:col-span-2 flex flex-col h-full overflow-hidden"
                     >
-                        <div className="p-8 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/30">
+                        <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/50">
                             <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
-                                    <Activity size={24} />
+                                <div className="p-2.5 bg-slate-100 text-slate-600 rounded-xl">
+                                    <Activity size={22} />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold text-slate-800">Audit Trail</h2>
-                                    <p className="text-sm text-slate-500">Real-time system monitoring</p>
+                                    <h2 className="text-lg font-bold text-slate-800">Audit Trail</h2>
+                                    <p className="text-xs text-slate-400">System activity log</p>
                                 </div>
                             </div>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => fetchLogs(1, true)}
-                                    disabled={isRefreshing}
-                                    className={`p-2.5 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all ${isRefreshing ? 'opacity-80' : ''}`}
-                                >
-                                    <RefreshCw size={20} className={isRefreshing ? "animate-spin" : ""} />
-                                </button>
-                            </div>
+                            <button
+                                onClick={() => fetchLogs(1, true)}
+                                disabled={isRefreshing}
+                                className={`p-2.5 bg-[#1B2845] text-white rounded-xl shadow-sm hover:bg-[#243656] transition-all ${isRefreshing ? 'opacity-80' : ''}`}
+                            >
+                                <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} />
+                            </button>
                         </div>
 
                         <div className="flex-1 overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="border-b border-slate-100">
-                                        <th className="px-8 py-5 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50 w-24">Action</th>
-                                        <th className="px-8 py-5 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50 w-64">User</th>
-                                        <th className="px-8 py-5 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">Details</th>
-                                        <th className="px-8 py-5 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50 w-48 text-right">Timestamp</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/50 w-24">Action</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/50 w-56">User</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/50">Details</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/50 w-40 text-right">Time</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
                                     {logs.length === 0 ? (
                                         <tr>
-                                            <td colSpan="4" className="px-8 py-16 text-center">
+                                            <td colSpan="4" className="px-6 py-16 text-center">
                                                 <div className="flex flex-col items-center justify-center gap-3 opacity-50">
-                                                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center">
-                                                        <Search size={32} className="text-slate-400" />
+                                                    <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center">
+                                                        <Search size={28} className="text-slate-400" />
                                                     </div>
-                                                    <p className="text-slate-500 font-medium">No activity recorded yet</p>
+                                                    <p className="text-slate-500 font-medium text-sm">No activity recorded yet</p>
                                                 </div>
                                             </td>
                                         </tr>
@@ -505,35 +539,35 @@ const AdminPage = () => {
                                                 key={log.id}
                                                 initial={{ opacity: 0, y: 10 }}
                                                 animate={{ opacity: 1, y: 0 }}
-                                                transition={{ delay: index * 0.05 }}
-                                                className="hover:bg-slate-50/80 transition-colors group"
+                                                transition={{ delay: index * 0.03 }}
+                                                className="hover:bg-slate-50/80 transition-colors"
                                             >
-                                                <td className="px-8 py-5 align-top">
-                                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase border shadow-sm ${log.action === 'DELETE' || log.action === 'DELETE_ALL' ? 'bg-white text-red-600 border-red-100' :
-                                                        log.action === 'CREATE' || log.action.includes('CREATE') ? 'bg-white text-emerald-600 border-emerald-100' :
-                                                            log.action === 'UPDATE' || log.action === 'BATCH_UPDATE' || log.action.includes('UPDATE') || log.action.includes('PASSWORD') ? 'bg-white text-amber-600 border-amber-100' :
-                                                                'bg-white text-indigo-600 border-indigo-100'
+                                                <td className="px-6 py-4 align-top">
+                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase border ${log.action === 'DELETE' || log.action === 'DELETE_ALL' ? 'bg-red-50 text-red-600 border-red-100' :
+                                                        log.action === 'CREATE' || log.action.includes('CREATE') ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                            log.action === 'UPDATE' || log.action === 'BATCH_UPDATE' || log.action.includes('UPDATE') || log.action.includes('PASSWORD') ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                                                'bg-slate-50 text-slate-600 border-slate-100'
                                                         }`}>
                                                         <span className={`w-1.5 h-1.5 rounded-full ${log.action === 'DELETE' || log.action === 'DELETE_ALL' ? 'bg-red-500' :
                                                             log.action === 'CREATE' || log.action.includes('CREATE') ? 'bg-emerald-500' :
                                                                 log.action === 'UPDATE' || log.action === 'BATCH_UPDATE' || log.action.includes('UPDATE') || log.action.includes('PASSWORD') ? 'bg-amber-500' :
-                                                                    'bg-indigo-500'
+                                                                    'bg-slate-500'
                                                             }`}></span>
                                                         {log.action}
                                                     </span>
                                                 </td>
-                                                <td className="px-8 py-5 align-top">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 ring-2 ring-white shadow-sm">
+                                                <td className="px-6 py-4 align-top">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500">
                                                             {log.user_email?.charAt(0).toUpperCase()}
                                                         </div>
-                                                        <span className="text-sm font-semibold text-slate-700">{log.user_email}</span>
+                                                        <span className="text-sm font-medium text-slate-700">{log.user_email}</span>
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-5 text-sm text-slate-600 leading-relaxed font-medium">
+                                                <td className="px-6 py-4 text-sm text-slate-600 leading-relaxed">
                                                     {log.details}
                                                 </td>
-                                                <td className="px-8 py-5 text-xs text-slate-400 font-mono text-right whitespace-nowrap">
+                                                <td className="px-6 py-4 text-xs text-slate-400 font-mono text-right whitespace-nowrap">
                                                     {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     <br />
                                                     <span className="opacity-75">{new Date(log.timestamp).toLocaleDateString()}</span>
@@ -546,8 +580,8 @@ const AdminPage = () => {
                         </div>
 
                         {/* Pagination Footer */}
-                        <div className="p-6 border-t border-slate-100 flex justify-between items-center bg-slate-50/50">
-                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                        <div className="p-5 border-t border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <span className="text-xs font-medium text-slate-400">
                                 Page {logPage} of {totalPages}
                             </span>
                             <div className="flex gap-2">
@@ -578,42 +612,42 @@ const AdminPage = () => {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
                         onClick={() => setShowCreateModal(false)}
                     >
                         <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
+                            initial={{ scale: 0.96, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8"
+                            exit={{ scale: 0.96, opacity: 0 }}
+                            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-7"
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
-                                {adminType === 'super_admin' ? <Shield className="text-purple-600" /> : <Building2 className="text-blue-600" />}
+                            <h2 className="text-xl font-bold text-slate-900 mb-5 flex items-center gap-2">
+                                {adminType === 'super_admin' ? <Shield size={20} className="text-slate-600" /> : <Building2 size={20} className="text-amber-600" />}
                                 Create {adminType === 'super_admin' ? 'Super Admin' : 'Sub Admin'}
                             </h2>
 
                             <form onSubmit={handleCreateAdmin} className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">Email Address</label>
+                                    <label className="block text-sm font-semibold text-slate-600 mb-1.5">Email Address</label>
                                     <input
                                         type="email"
                                         value={newAdminEmail}
                                         onChange={(e) => setNewAdminEmail(e.target.value)}
-                                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-slate-400 transition-all text-sm"
                                         placeholder="admin@nriit.edu.in"
                                         required
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">Password</label>
+                                    <label className="block text-sm font-semibold text-slate-600 mb-1.5">Password</label>
                                     <div className="relative">
                                         <input
                                             type={showPassword ? "text" : "password"}
                                             value={newAdminPassword}
                                             onChange={(e) => setNewAdminPassword(e.target.value)}
-                                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 pr-12"
+                                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-slate-400 pr-12 transition-all text-sm"
                                             placeholder="Strong password"
                                             required
                                         />
@@ -622,18 +656,18 @@ const AdminPage = () => {
                                             onClick={() => setShowPassword(!showPassword)}
                                             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                                         >
-                                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                         </button>
                                     </div>
                                 </div>
 
                                 {adminType === 'sub_admin' && (
                                     <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">Department</label>
+                                        <label className="block text-sm font-semibold text-slate-600 mb-1.5">Department</label>
                                         <select
                                             value={newAdminDepartment}
                                             onChange={(e) => setNewAdminDepartment(e.target.value)}
-                                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-slate-400 transition-all text-sm"
                                             required
                                         >
                                             <option value="">Select Department</option>
@@ -644,18 +678,18 @@ const AdminPage = () => {
                                     </div>
                                 )}
 
-                                <div className="flex gap-3 pt-4">
+                                <div className="flex gap-3 pt-3">
                                     <button
                                         type="button"
                                         onClick={() => setShowCreateModal(false)}
-                                        className="flex-1 py-3 border border-slate-300 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors"
+                                        className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50 transition-colors text-sm"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
                                         disabled={isCreating}
-                                        className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-xl font-bold hover:shadow-lg transition-all disabled:opacity-50"
+                                        className="flex-1 py-2.5 bg-[#1B2845] hover:bg-[#243656] text-white rounded-xl font-semibold transition-all disabled:opacity-50 text-sm"
                                     >
                                         {isCreating ? "Creating..." : "Create Admin"}
                                     </button>
@@ -673,47 +707,47 @@ const AdminPage = () => {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
                         onClick={() => setShowPasswordModal(false)}
                     >
                         <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
+                            initial={{ scale: 0.96, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8"
+                            exit={{ scale: 0.96, opacity: 0 }}
+                            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-7"
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <h2 className="text-2xl font-bold text-slate-900 mb-2 flex items-center gap-2">
-                                <Key className="text-blue-600" />
+                            <h2 className="text-xl font-bold text-slate-900 mb-1 flex items-center gap-2">
+                                <Key size={20} className="text-slate-600" />
                                 Reset Password
                             </h2>
-                            <p className="text-slate-600 mb-6">Resetting password for <span className="font-semibold">{selectedAdmin.email}</span></p>
+                            <p className="text-slate-500 text-sm mb-5">For <span className="font-semibold text-slate-700">{selectedAdmin.email}</span></p>
 
                             <form onSubmit={handleResetPassword} className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">New Password</label>
+                                    <label className="block text-sm font-semibold text-slate-600 mb-1.5">New Password</label>
                                     <input
                                         type="password"
                                         value={newPassword}
                                         onChange={(e) => setNewPassword(e.target.value)}
-                                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-slate-400 transition-all text-sm"
                                         placeholder="Enter new password"
                                         required
                                     />
                                 </div>
 
-                                <div className="flex gap-3 pt-4">
+                                <div className="flex gap-3 pt-3">
                                     <button
                                         type="button"
                                         onClick={() => setShowPasswordModal(false)}
-                                        className="flex-1 py-3 border border-slate-300 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors"
+                                        className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50 transition-colors text-sm"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
                                         disabled={isResetting}
-                                        className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all disabled:opacity-50"
+                                        className="flex-1 py-2.5 bg-[#1B2845] hover:bg-[#243656] text-white rounded-xl font-semibold transition-all disabled:opacity-50 text-sm"
                                     >
                                         {isResetting ? "Resetting..." : "Reset Password"}
                                     </button>
@@ -731,29 +765,29 @@ const AdminPage = () => {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
                         onClick={() => setShowDepartmentModal(false)}
                     >
                         <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
+                            initial={{ scale: 0.96, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8"
+                            exit={{ scale: 0.96, opacity: 0 }}
+                            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-7"
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <h2 className="text-2xl font-bold text-slate-900 mb-2 flex items-center gap-2">
-                                <Building2 className="text-green-600" />
+                            <h2 className="text-xl font-bold text-slate-900 mb-1 flex items-center gap-2">
+                                <Building2 size={20} className="text-amber-600" />
                                 Change Department
                             </h2>
-                            <p className="text-slate-600 mb-6">Changing department for <span className="font-semibold">{selectedAdmin.email}</span></p>
+                            <p className="text-slate-500 text-sm mb-5">For <span className="font-semibold text-slate-700">{selectedAdmin.email}</span></p>
 
                             <form onSubmit={handleChangeDepartment} className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">New Department</label>
+                                    <label className="block text-sm font-semibold text-slate-600 mb-1.5">New Department</label>
                                     <select
                                         value={newDepartment}
                                         onChange={(e) => setNewDepartment(e.target.value)}
-                                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-slate-400 transition-all text-sm"
                                         required
                                     >
                                         <option value="">Select Department</option>
@@ -763,20 +797,108 @@ const AdminPage = () => {
                                     </select>
                                 </div>
 
-                                <div className="flex gap-3 pt-4">
+                                <div className="flex gap-3 pt-3">
                                     <button
                                         type="button"
                                         onClick={() => setShowDepartmentModal(false)}
-                                        className="flex-1 py-3 border border-slate-300 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors"
+                                        className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50 transition-colors text-sm"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
                                         disabled={isChangingDept}
-                                        className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all disabled:opacity-50"
+                                        className="flex-1 py-2.5 bg-[#1B2845] hover:bg-[#243656] text-white rounded-xl font-semibold transition-all disabled:opacity-50 text-sm"
                                     >
                                         {isChangingDept ? "Updating..." : "Change Department"}
+                                    </button>
+                                </div>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Change My Password Modal */}
+            <AnimatePresence>
+                {showMyPasswordModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                        onClick={() => setShowMyPasswordModal(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.96, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.96, opacity: 0 }}
+                            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-7"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <h2 className="text-xl font-bold text-slate-900 mb-1 flex items-center gap-2">
+                                <Lock size={20} className="text-slate-600" />
+                                Change Your Password
+                            </h2>
+                            <p className="text-slate-500 text-sm mb-5">Enter your current password and a new one</p>
+
+                            <form onSubmit={handleChangeMyPassword} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-600 mb-1.5">Current Password</label>
+                                    <div className="relative">
+                                        <input
+                                            type={showCurrentPwd ? "text" : "password"}
+                                            value={currentPassword}
+                                            onChange={(e) => setCurrentPassword(e.target.value)}
+                                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-slate-400 pr-12 transition-all text-sm"
+                                            placeholder="Enter current password"
+                                            required
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCurrentPwd(!showCurrentPwd)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                        >
+                                            {showCurrentPwd ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-600 mb-1.5">New Password</label>
+                                    <div className="relative">
+                                        <input
+                                            type={showNewPwd ? "text" : "password"}
+                                            value={myNewPassword}
+                                            onChange={(e) => setMyNewPassword(e.target.value)}
+                                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-slate-400 pr-12 transition-all text-sm"
+                                            placeholder="Enter new password (min 6 chars)"
+                                            required
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowNewPwd(!showNewPwd)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                        >
+                                            {showNewPwd ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-3 pt-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowMyPasswordModal(false)}
+                                        className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50 transition-colors text-sm"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isChangingMyPwd}
+                                        className="flex-1 py-2.5 bg-[#1B2845] hover:bg-[#243656] text-white rounded-xl font-semibold transition-all disabled:opacity-50 text-sm"
+                                    >
+                                        {isChangingMyPwd ? "Changing..." : "Update Password"}
                                     </button>
                                 </div>
                             </form>

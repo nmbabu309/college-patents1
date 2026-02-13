@@ -63,9 +63,9 @@ const BulkImport = ({ isOpen, onClose, onSuccess }) => {
 
     // Define headers
     const headers = [
-      'Row #', 'Status', 'Error Message', 'Email', 'Faculty Name', 'Designation', 'Department',
-      'Co-Applicants', 'Authors', 'Patent ID', 'Patent Title', 'Patent Type', 'Approval Type',
-      'Date of Approval', 'Filing Date', 'Granting Date', 'Publishing Date', 'Document Link'
+      'Row #', 'Status', 'Error Message', 'Email', 'Faculty Name', 'Department', 'Designation',
+      'Caste', 'Patent ID', 'Patent Title', 'Co-Applicants', 'Patent Type', 'Approval Type',
+      'Filing Date', 'Publishing Date', 'Granting Date', 'Document Link', 'Grant Document Link', 'Authors'
     ];
 
     // Add header row with styling
@@ -86,19 +86,20 @@ const BulkImport = ({ isOpen, onClose, onSuccess }) => {
         result.error || '',
         result.data['Email'] || result.data['email'] || '',
         result.data['Faculty Name'] || result.data['facultyName'] || '',
-        result.data['Designation'] || result.data['designation'] || '',
         result.data['Department'] || result.data['department'] || '',
-        result.data['Co-Applicants'] || result.data['coApplicants'] || '',
-        result.data['Authors'] || result.data['authors'] || '',
+        result.data['Designation'] || result.data['designation'] || '',
+        result.data['Caste'] || result.data['caste'] || '',
         result.data['Patent ID'] || result.data['patentId'] || '',
         result.data['Patent Title'] || result.data['patentTitle'] || '',
+        result.data['Co-Applicants'] || result.data['coApplicants'] || '',
         result.data['Patent Type'] || result.data['patentType'] || '',
         result.data['Approval Type'] || result.data['approvalType'] || '',
-        result.data['Date of Approval'] || result.data['dateOfApproval'] || '',
         result.data['Filing Date'] || result.data['filingDate'] || '',
-        result.data['Granting Date'] || result.data['grantingDate'] || '',
         result.data['Publishing Date'] || result.data['publishingDate'] || '',
-        result.data['Document Link'] || result.data['documentLink'] || ''
+        result.data['Granting Date'] || result.data['grantingDate'] || '',
+        result.data['Document Link'] || result.data['Proof of Publish Link'] || result.data['documentLink'] || '',
+        result.data['Grant Document Link'] || result.data['Proof of Grant Link'] || result.data['grantDocumentLink'] || '',
+        result.data['Authors'] || result.data['authors'] || ''
       ]);
 
       // Color code the row
@@ -183,45 +184,35 @@ const BulkImport = ({ isOpen, onClose, onSuccess }) => {
 
 
             const patentType = row['Patent Type'] || row['patentType'] || 'Utility';
-            
+            const approvalType = row['Approval Type'] || row['approvalType'] || 'Published';
+
             const payload = {
               email: email,
               facultyName: row['Faculty Name'] || row['facultyName'] || '',
-              designation: row['Designation'] || row['designation'] || '',
               department: row['Department'] || row['department'] || '',
-              coApplicants: row['Co-Applicants'] || row['coApplicants'] || '',
-              authors: row['Authors'] || row['authors'] || '',
+              designation: row['Designation'] || row['designation'] || '',
+              caste: row['Caste'] || row['caste'] || '',
               patentId: row['Patent ID'] || row['patentId'] || '',
               patentTitle: row['Patent Title'] || row['patentTitle'] || '',
+              coApplicants: row['Co-Applicants'] || row['coApplicants'] || '',
               patentType: patentType,
-              approvalType: row['Approval Type'] || row['approvalType'] || '',
-              dateOfApproval: row['Date of Approval'] || row['dateOfApproval'] || '',
+              approvalType: approvalType,
               filingDate: row['Filing Date'] || row['filingDate'] || '',
-              grantingDate: row['Granting Date'] || row['grantingDate'] || '',
               publishingDate: row['Publishing Date'] || row['publishingDate'] || '',
-              documentLink: row['Document Link'] || row['documentLink'] || ''
+              grantingDate: row['Granting Date'] || row['grantingDate'] || '',
+              documentLink: row['Document Link'] || row['Proof of Publish Link'] || row['documentLink'] || '',
+              grantDocumentLink: row['Grant Document Link'] || row['Proof of Grant Link'] || row['grantDocumentLink'] || '',
+              authors: row['Authors'] || row['authors'] || '',
             };
 
-            // Validate date requirements based on patent type
-            if (patentType === 'Utility') {
-              if (!payload.filingDate) {
-                throw new Error('Filing date is required for Utility patents');
-              }
-              if (!payload.grantingDate) {
-                throw new Error('Granting date is required for Utility patents');
-              }
-              // publishingDate is optional for Utility patents
-            } else if (patentType === 'Design') {
-              if (!payload.filingDate) {
-                throw new Error('Filing date is required for Design patents');
-              }
-              if (!payload.grantingDate) {
-                throw new Error('Granting date is required for Design patents');
-              }
-              if (!payload.publishingDate) {
-                throw new Error('Publishing date is required for Design patents');
-              }
+            // Validate date requirements
+            if (!payload.filingDate) {
+              throw new Error('Filing date is required');
             }
+            if (!payload.publishingDate) {
+              throw new Error('Publishing date is required');
+            }
+            // grantingDate is optional for all patent types
 
             // Validate email field exists
             if (!payload.email || payload.email.trim() === '') {

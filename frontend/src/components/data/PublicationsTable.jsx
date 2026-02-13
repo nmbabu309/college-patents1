@@ -141,19 +141,20 @@ const PublicationsTable = forwardRef(({ showActions = false, externalFilters = {
   const columns = [
     { key: "facultyName", label: "Faculty Name", minWidth: "180px" },
     { key: "email", label: "Email", minWidth: "150px" },
-    { key: "designation", label: "Designation", minWidth: "150px" },
     { key: "department", label: "Department", minWidth: "120px" },
-    { key: "coApplicants", label: "Co-Applicants", minWidth: "200px" },
-    { key: "authors", label: "Author Position", minWidth: "150px" },
+    { key: "designation", label: "Designation", minWidth: "150px" },
+    { key: "caste", label: "Caste", minWidth: "80px" },
     { key: "patentId", label: "Patent ID", minWidth: "140px" },
     { key: "patentTitle", label: "Patent Title", minWidth: "250px" },
+    { key: "authors", label: "Author Position", minWidth: "150px" },
+    { key: "coApplicants", label: "Co-Applicants", minWidth: "200px" },
     { key: "patentType", label: "Patent Type", minWidth: "120px" },
     { key: "approvalType", label: "Approval Type", minWidth: "130px" },
     { key: "filingDate", label: "Filing Date", minWidth: "120px" },
-    { key: "grantingDate", label: "Granting Date", minWidth: "120px" },
     { key: "publishingDate", label: "Publishing Date", minWidth: "130px" },
-    { key: "dateOfApproval", label: "Date of Approval", minWidth: "120px" },
-    { key: "documentLink", label: "Document Link", isLink: true, minWidth: "140px" },
+    { key: "grantingDate", label: "Granting Date", minWidth: "120px" },
+    { key: "documentLink", label: "Proof of Publish", isLink: true, minWidth: "140px" },
+    { key: "grantDocumentLink", label: "Proof of Grant", isLink: true, minWidth: "140px" },
   ];
 
   const handleFilterChange = (key, value) => {
@@ -339,7 +340,7 @@ const PublicationsTable = forwardRef(({ showActions = false, externalFilters = {
                                   </div>
                                   <span className="font-semibold text-slate-800">{row.facultyName}</span>
                                 </div>
-                              ) : (col.key === 'dateOfApproval' || col.key === 'filingDate' || col.key === 'grantingDate' || col.key === 'publishingDate') && row[col.key] ? (
+                              ) : (col.key === 'filingDate' || col.key === 'grantingDate' || col.key === 'publishingDate') && row[col.key] ? (
                                 <span className="text-slate-600 font-medium font-mono text-xs">{new Date(row[col.key]).toLocaleDateString()}</span>
                               ) : (
                                 row[col.key] || <span className="text-slate-300">-</span>

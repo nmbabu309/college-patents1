@@ -360,4 +360,57 @@ router.get("/departments", verifyToken, requireAnyAdmin, async (req, res) => {
   }
 });
 
+// Dashboard stats
+router.get("/stats", verifyToken, requireAnyAdmin, async (req, res) => {
+  try {
+    const isSuperAdmin = req.user.role === 'super_admin';
+    const dept = req.user.department;
+
+    // Patent count (filtered by department for sub-admins)
+    let patentQuery = "SELECT COUNT(*) as count FROM patents";
+    let patentParams = [];
+    if (!isSuperAdmin && dept) {
+      patentQuery += " WHERE department = ?";
+      patentParams = [dept];
+    }
+    const [[{ count: totalPatents }]] = await db.query(patentQuery, patentParams);
+
+    // Admin count (super-admin only)
+    let totalAdmins = 0;
+    if (isSuperAdmin) {
+      const [[{ count }]] = await db.query("SELECT COUNT(*) as count FROM admins");
+      totalAdmins = count;
+    }
+
+    // Log count
+    let logQuery = "SELECT COUNT(*) as count FROM audit_logs";
+    let logParams = [];
+    if (!isSuperAdmin && dept) {
+      logQuery += " WHERE details LIKE ?";
+      logParams = [`%${dept}%`];
+    }
+    const [[{ count: totalLogs }]] = await db.query(logQuery, logParams);
+
+    // Department count (super-admin only)
+    let totalDepartments = 0;
+    if (isSuperAdmin) {
+      const [[{ count: deptCount }]] = await db.query(
+        "SELECT COUNT(DISTINCT department) as count FROM patents WHERE department IS NOT NULL AND department != ''"
+      );
+      totalDepartments = deptCount;
+    }
+
+    return res.status(200).json({
+      totalPatents,
+      totalAdmins,
+      totalLogs,
+      totalDepartments,
+      department: dept || null
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Failed to fetch stats" });
+  }
+});
+
 export default router;
