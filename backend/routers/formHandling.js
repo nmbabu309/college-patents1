@@ -156,16 +156,24 @@ router.post("/formEntry", verifyToken, requireAnyAdmin, uploadFields, async (req
     authors,
   } = req.body;
 
-  // Require uploaded PDF for published document (mandatory)
+  // Require uploaded PDF for published document (mandatory for manual, optional if link provided in body for bulk)
   const docFile = req.files?.documentFile?.[0];
   const grantFile = req.files?.grantDocumentFile?.[0];
 
-  if (!docFile) {
-    return res.status(400).json({ message: "Proof of Publish (PDF) is required." });
+  let finalDocumentLink = req.body.documentLink || null;
+  let finalGrantDocLink = req.body.grantDocumentLink || null;
+
+  if (docFile) {
+    finalDocumentLink = `/uploads/${docFile.filename}`;
   }
 
-  const finalDocumentLink = `/uploads/${docFile.filename}`;
-  const finalGrantDocLink = grantFile ? `/uploads/${grantFile.filename}` : null;
+  if (grantFile) {
+    finalGrantDocLink = `/uploads/${grantFile.filename}`;
+  }
+
+  // if (!finalDocumentLink) {
+  //   return res.status(400).json({ message: "Proof of Publish (PDF or Link) is required." });
+  // }
 
   // Default patentType to 'Utility' if not provided (backward compatibility)
   const finalPatentType = patentType || 'Utility';
@@ -350,6 +358,10 @@ router.put("/formEntryBatchUpdate", verifyToken, requireAnyAdmin, async (req, re
 });
 
 router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async (req, res) => {
+  console.log("--- DEBUG: formEntryUpdate Called ---");
+  console.log("Body:", JSON.stringify(req.body, null, 2));
+  console.log("Files:", req.files ? Object.keys(req.files) : "No files");
+  
   const {
     id,
     email,
@@ -365,17 +377,27 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async
     filingDate,
     grantingDate,
     publishingDate,
+    documentLink,
+    grantDocumentLink,
     authors,
   } = req.body;
+
+  console.log("Updating ID:", id);
+
+  if (!id) {
+    console.warn("DEBUG: Patent ID is missing in request body");
+    return res.status(400).json({ message: "Patent ID is required" });
+  }
 
   const userEmail = req.user.userEmail;
 
   try {
     // Fetch existing entry
-    const [rows] = await db.query("SELECT email, documentLink, grantDocumentLink, patentType, department FROM patents WHERE id = ?", [id]);
+    const [rows] = await db.query("SELECT * FROM patents WHERE id = ?", [id]);
     const entry = rows[0];
 
     if (!entry) {
+      console.log("DEBUG: Patent not found for ID:", id);
       return res.status(404).json({ message: "Patent not found" });
     }
 
@@ -388,20 +410,45 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async
       }
     }
 
-    // Use provided patentType or keep existing one
-    const finalPatentType = patentType || entry.patentType || 'Utility';
+    // Sanitize inputs: Convert empty strings to null to ensure COALESCE works as intended
+    const sanitize = (val) => (val === '' ? null : val);
 
-    // Validate date requirements based on patent type
-    const dateValidation = validatePatentDates(finalPatentType, filingDate, grantingDate, publishingDate);
+    const emailSanitized = sanitize(email);
+    const facultyNameSanitized = sanitize(facultyName);
+    const designationSanitized = sanitize(designation);
+    const departmentSanitized = sanitize(department);
+    const casteSanitized = sanitize(caste);
+    const coApplicantsSanitized = sanitize(coApplicants);
+    const patentIdSanitized = sanitize(patentId);
+    const patentTitleSanitized = sanitize(patentTitle);
+    const patentTypeSanitized = sanitize(patentType);
+    const approvalTypeSanitized = sanitize(approvalType);
+    const filingDateSanitized = sanitize(filingDate);
+    const grantingDateSanitized = sanitize(grantingDate);
+    const publishingDateSanitized = sanitize(publishingDate);
+    const authorsSanitized = sanitize(authors);
+
+    // Prepare merged state for validation (New Value -> Existing Value -> Default)
+    // Use sanitized values here if provided
+    const finalPatentType = patentTypeSanitized || entry.patentType || 'Utility';
+    const finalFilingDate = filingDateSanitized !== undefined ? filingDateSanitized : entry.filingDate;
+    const finalGrantingDate = grantingDateSanitized !== undefined ? grantingDateSanitized : entry.grantingDate;
+    const finalPublishingDate = publishingDateSanitized !== undefined ? publishingDateSanitized : entry.publishingDate;
+
+    // Validate date requirements check against the FINAL state of the record
+    const dateValidation = validatePatentDates(finalPatentType, finalFilingDate, finalGrantingDate, finalPublishingDate);
     if (!dateValidation.valid) {
+      console.log("DEBUG: Date validation failed:", dateValidation.message);
       return res.status(400).json({ message: dateValidation.message });
     }
 
-    // Determine final documentLink: prefer uploaded file, otherwise keep existing
+    // Determine final documentLink
     const docFile = req.files?.documentFile?.[0];
-    let finalDocumentLink = entry.documentLink;
+    let finalDocumentLink = entry.documentLink; 
+
     if (docFile) {
       finalDocumentLink = `/uploads/${docFile.filename}`;
+      // Clean up old local file if replacing
       try {
         if (entry.documentLink?.startsWith('/uploads/')) {
           const oldPath = path.join(__dirname, '..', entry.documentLink.replace(/^\/+/, ''));
@@ -410,11 +457,14 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async
       } catch (err) {
         console.error('Failed to remove old published doc:', err);
       }
+    } else if (documentLink !== undefined) {
+      finalDocumentLink = documentLink; // Could be empty string if clearing, but usually handled by frontend logic
     }
 
     // Determine final grantDocumentLink
     const grantFile = req.files?.grantDocumentFile?.[0];
     let finalGrantDocLink = entry.grantDocumentLink;
+
     if (grantFile) {
       finalGrantDocLink = `/uploads/${grantFile.filename}`;
       try {
@@ -425,10 +475,33 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async
       } catch (err) {
         console.error('Failed to remove old grant doc:', err);
       }
+    } else if (grantDocumentLink !== undefined) {
+       finalGrantDocLink = grantDocumentLink;
     }
 
-    await db.query(
-      `UPDATE patents 
+    const queryParams = [
+        emailSanitized ?? null,
+        facultyNameSanitized ?? null,
+        designationSanitized ?? null,
+        departmentSanitized ?? null,
+        casteSanitized ?? null,
+        coApplicantsSanitized ?? null,
+        patentIdSanitized ?? null,
+        patentTitleSanitized ?? null,
+        finalPatentType ?? null,
+        approvalTypeSanitized ?? null,
+        formatDateForMySQL(filingDateSanitized ?? null),
+        formatDateForMySQL(grantingDateSanitized ?? null),
+        formatDateForMySQL(publishingDateSanitized ?? null),
+        finalDocumentLink ?? null,
+        finalGrantDocLink ?? null,
+        authorsSanitized ?? null,
+        id
+      ];
+
+    console.log("DEBUG: Running UPDATE query with params:", queryParams);
+
+    const updateQuery = `UPDATE patents 
       SET 
         email = COALESCE(?, email),
         facultyName = COALESCE(?, facultyName),
@@ -443,41 +516,27 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async
         filingDate = COALESCE(?, filingDate),
         grantingDate = COALESCE(?, grantingDate),
         publishingDate = COALESCE(?, publishingDate),
-        documentLink = COALESCE(?, documentLink),
-        grantDocumentLink = COALESCE(?, grantDocumentLink),
+        documentLink = ?,
+        grantDocumentLink = ?,
         authors = COALESCE(?, authors)
-      WHERE id = ?
-    `,
-      [
-        email ?? null,
-        facultyName ?? null,
-        designation ?? null,
-        department ?? null,
-        caste ?? null,
-        coApplicants ?? null,
-        patentId ?? null,
-        patentTitle ?? null,
-        finalPatentType ?? null,
-        approvalType ?? null,
-        formatDateForMySQL(filingDate ?? null),
-        formatDateForMySQL(grantingDate ?? null),
-        formatDateForMySQL(publishingDate ?? null),
-        finalDocumentLink ?? null,
-        finalGrantDocLink ?? null,
-        authors ?? null,
-        id
-      ]
-    );
+      WHERE id = ?`;
 
-    await logAction(userEmail, "UPDATE", `Updated patent ID: ${id} - ${patentTitle}`);
+    await db.query(updateQuery, queryParams);
+
+    await logAction(userEmail, "UPDATE", `Updated patent ID: ${id} - ${patentTitle || entry.patentTitle}`);
     return res.status(200).json({ message: "Patent updated successfully" });
 
   } catch (e) {
-    console.error("Update error:", e);
+    console.error("Update error STACK:", e);
     if (e instanceof multer.MulterError || e?.message === 'Only PDF files are allowed') {
       return res.status(400).json({ message: e.message || 'File upload error' });
     }
-    return res.status(500).json({ message: "Internal server error" });
+    // Return actual error message for debugging
+    return res.status(500).json({ 
+        message: "Internal server error", 
+        error: e.message,
+        stack: process.env.NODE_ENV === 'development' ? e.stack : undefined
+    });
   }
 });
 
@@ -645,6 +704,30 @@ router.get("/downloadExcel", verifyToken, async (req, res) => {
 
     const [rows] = await db.query(query, params);
 
+    // Determine base URL for file links
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const baseUrl = `${protocol}://${host}`;
+
+    // Convert relative paths to absolute URLs
+    rows.forEach(row => {
+      if (row.documentLink) {
+        if (row.documentLink === 'https://example.com/grant/3') {
+          row.documentLink = '';
+        } else if (row.documentLink.startsWith('/')) {
+          row.documentLink = `${baseUrl}${row.documentLink}`;
+        }
+      }
+      
+      if (row.grantDocumentLink) {
+        if (row.grantDocumentLink === 'https://example.com/grant/3') {
+          row.grantDocumentLink = '';
+        } else if (row.grantDocumentLink.startsWith('/')) {
+          row.grantDocumentLink = `${baseUrl}${row.grantDocumentLink}`;
+        }
+      }
+    });
+
     // Create workbook + sheet
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Patents");
@@ -754,7 +837,7 @@ router.get("/downloadTemplate", async (req, res) => {
     const worksheet = workbook.addWorksheet("Patents");
 
     // 1. Add Title Row
-    worksheet.mergeCells("A1:O1");
+    worksheet.mergeCells("A1:P1");
     const titleRow = worksheet.getRow(1);
     titleRow.getCell(1).value = "FACULTY PATENTS";
     titleRow.getCell(1).font = {

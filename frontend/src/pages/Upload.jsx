@@ -96,6 +96,25 @@ const Upload = () => {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      const response = await api.get('/form/downloadExcel', {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'patents.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export data');
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#FAFBFD]">
       <Header />
@@ -171,10 +190,8 @@ const Upload = () => {
 
                 <div className="my-1.5 border-t border-slate-100" />
 
-                <a
-                  href="/form/downloadExcel"
-                  target="_blank"
-                  download
+                <button
+                  onClick={handleExport}
                   className="w-full flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 hover:border-slate-200 hover:bg-slate-100/50 transition-all text-left"
                 >
                   <div className="w-8 h-8 rounded-lg bg-white text-[#1B2845] flex items-center justify-center shrink-0 shadow-sm">
@@ -184,7 +201,7 @@ const Upload = () => {
                     <span className="block font-semibold text-slate-700 text-sm">Export Database</span>
                     <span className="text-xs text-slate-400">Download all records</span>
                   </div>
-                </a>
+                </button>
               </div>
             </div>
 

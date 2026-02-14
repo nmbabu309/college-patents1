@@ -269,16 +269,8 @@ const PublicationsTable = forwardRef(({ showActions = false, externalFilters = {
                   const isOwnEntry = isAuthenticated && user?.userEmail === row.email;
 
                   return (
-                    <motion.tr
+                    <tr
                       key={row.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true, margin: "-50px" }}
-                      transition={{
-                        duration: 0.3,
-                        delay: index * 0.05,
-                        ease: "easeOut"
-                      }}
                       className={`hover:bg-gradient-to-r hover:from-indigo-50/60 hover:via-slate-50/30 hover:to-transparent transition-all duration-300 group cursor-pointer ${isOwnEntry ? "bg-indigo-50/50 border-l-[4px] border-l-indigo-500 shadow-sm" : "border-l-[4px] border-l-transparent hover:border-l-slate-300"
                         }`}
                     >
@@ -379,7 +371,7 @@ const PublicationsTable = forwardRef(({ showActions = false, externalFilters = {
                           </div>
                         </td>
                       )}
-                    </motion.tr>
+                    </tr>
                   );
                 })
               ) : (

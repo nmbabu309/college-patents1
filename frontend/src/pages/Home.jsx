@@ -72,10 +72,13 @@ const Home = () => {
                 <ChevronRight size={14} className="opacity-50" />
               </a>
 
-              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 leading-tight tracking-tight">
-                Publications & Patents
-                <span className="block text-[#C8A96E] mt-1 text-2xl md:text-3xl lg:text-4xl font-semibold">Repository</span>
-              </h1>
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 leading-tight tracking-tight text-white">
+  Publications & Patents
+  <span className="block mt-1 text-2xl md:text-3xl lg:text-4xl font-semibold text-white">
+    Repository
+  </span>
+</h1>
+
 
               <p className="text-slate-300 text-base md:text-lg max-w-xl mx-auto leading-relaxed mb-8">
                 A digital archive of intellectual property and research contributions from our faculty and scholars.
@@ -126,16 +129,31 @@ const Home = () => {
                     <span className={isRefreshing ? 'animate-spin' : ''}>↻</span>
                     Refresh
                   </button>
-                  <a
-                    href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/form/downloadExcel`}
-                    target="_blank"
-                    download
-                    rel="noreferrer"
+                  <button
+                    onClick={async () => {
+                      try {
+                        const response = await import('../api/axios').then(module => module.default.get('/form/downloadExcel', {
+                          responseType: 'blob'
+                        }));
+                        
+                        const url = window.URL.createObjectURL(new Blob([response.data]));
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.setAttribute('download', 'patents.xlsx');
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                        window.URL.revokeObjectURL(url);
+                      } catch (error) {
+                        console.error('Export failed:', error);
+                        toast.error('Failed to export data');
+                      }
+                    }}
                     className="px-4 py-2 bg-[#1B2845] hover:bg-[#243656] text-white rounded-lg text-sm font-medium transition-all active:scale-95 flex items-center gap-1.5"
                   >
                     <Download size={15} />
                     Export
-                  </a>
+                  </button>
                 </div>
               </div>
 

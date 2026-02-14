@@ -216,8 +216,10 @@ const UploadForm = ({ onSuccess, initialData = null, onClose, hideSuccessPopup =
             };
 
             const form = new FormData();
+            // Exclude 'id', 'customDesignation', 'customRole' from spread to avoid duplicates
+            const excludeKeys = ['id', 'customDesignation', 'customRole'];
             Object.entries(submitData).forEach(([k, v]) => {
-                if (v !== undefined && v !== null) form.append(k, v);
+                if (v !== undefined && v !== null && !excludeKeys.includes(k)) form.append(k, v);
             });
             if (selectedFile) form.append('documentFile', selectedFile);
             if (selectedGrantFile) form.append('grantDocumentFile', selectedGrantFile);
@@ -226,9 +228,7 @@ const UploadForm = ({ onSuccess, initialData = null, onClose, hideSuccessPopup =
             const url = initialData ? '/form/formEntryUpdate' : '/form/formEntry';
             const method = initialData ? 'put' : 'post';
 
-            await api[method](url, form, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            await api[method](url, form);
 
             if (!hideSuccessPopup) {
                 toast.success(initialData ? 'Patent updated successfully!' : 'Patent submitted successfully!');

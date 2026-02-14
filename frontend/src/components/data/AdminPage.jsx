@@ -276,7 +276,7 @@ const AdminPage = () => {
     return (
         <div className="min-h-screen bg-[#F8FAFC]">
             <Header />
-            <div className="h-32"></div>
+            <div className="h-17"></div>
 
             <main className="max-w-[1600px] mx-auto p-6 lg:p-10 space-y-8">
 
