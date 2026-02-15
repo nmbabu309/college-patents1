@@ -2,10 +2,13 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Home from './pages/Home';
-import Upload from './pages/Upload';
-import AdminPage from './components/data/AdminPage';
 import NotFound from './pages/NotFound';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import { Suspense, lazy } from 'react';
+
+// Lazy load admin components
+const Upload = lazy(() => import('./pages/Upload'));
+const AdminPage = lazy(() => import('./components/data/AdminPage'));
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -20,39 +23,48 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
+// Loading Fallback
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-[#FAFBFD]">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2845]"></div>
+  </div>
+);
+
 function App() {
   return (
     <AuthProvider>
       <Router>
-        <Routes>
-          <Route path="/" element={
-            <ErrorBoundary>
-              <Home />
-            </ErrorBoundary>
-          } />
-          <Route
-            path="/upload"
-            element={
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={
               <ErrorBoundary>
-                <ProtectedRoute>
-                  <Upload />
-                </ProtectedRoute>
+                <Home />
               </ErrorBoundary>
-            }
-          />
-          <Route
-            path="/admin-dashboard"
-            element={
-              <ErrorBoundary>
-                <ProtectedRoute>
-                  <AdminPage />
-                </ProtectedRoute>
-              </ErrorBoundary>
-            }
-          />
-          {/* Catch all 404 */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+            } />
+            <Route
+              path="/upload"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute>
+                    <Upload />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin-dashboard"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute>
+                    <AdminPage />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            {/* Catch all 404 */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
         <Toaster
           position="top-center"
           reverseOrder={false}

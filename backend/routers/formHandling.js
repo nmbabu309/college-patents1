@@ -1,7 +1,7 @@
 import { Router } from "express";
 
 import { verifyToken } from "../middleware/verifyToken.js";
-import { requireAnyAdmin, isSuperAdmin } from "../middleware/authorization.js";
+import { requireAnyAdmin } from "../middleware/authorization.js";
 import { db } from "../db.js";
 import ExcelJS from "exceljs";
 import path from "path";
@@ -9,6 +9,7 @@ import { fileURLToPath } from "url";
 import multer from 'multer';
 import fs from 'fs';
 import jwt from 'jsonwebtoken';
+import rateLimit from "express-rate-limit"; // Import rateLimit
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -361,7 +362,7 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async
   console.log("--- DEBUG: formEntryUpdate Called ---");
   console.log("Body:", JSON.stringify(req.body, null, 2));
   console.log("Files:", req.files ? Object.keys(req.files) : "No files");
-  
+
   const {
     id,
     email,
@@ -444,7 +445,7 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async
 
     // Determine final documentLink
     const docFile = req.files?.documentFile?.[0];
-    let finalDocumentLink = entry.documentLink; 
+    let finalDocumentLink = entry.documentLink;
 
     if (docFile) {
       finalDocumentLink = `/uploads/${docFile.filename}`;
@@ -476,28 +477,28 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async
         console.error('Failed to remove old grant doc:', err);
       }
     } else if (grantDocumentLink !== undefined) {
-       finalGrantDocLink = grantDocumentLink;
+      finalGrantDocLink = grantDocumentLink;
     }
 
     const queryParams = [
-        emailSanitized ?? null,
-        facultyNameSanitized ?? null,
-        designationSanitized ?? null,
-        departmentSanitized ?? null,
-        casteSanitized ?? null,
-        coApplicantsSanitized ?? null,
-        patentIdSanitized ?? null,
-        patentTitleSanitized ?? null,
-        finalPatentType ?? null,
-        approvalTypeSanitized ?? null,
-        formatDateForMySQL(filingDateSanitized ?? null),
-        formatDateForMySQL(grantingDateSanitized ?? null),
-        formatDateForMySQL(publishingDateSanitized ?? null),
-        finalDocumentLink ?? null,
-        finalGrantDocLink ?? null,
-        authorsSanitized ?? null,
-        id
-      ];
+      emailSanitized ?? null,
+      facultyNameSanitized ?? null,
+      designationSanitized ?? null,
+      departmentSanitized ?? null,
+      casteSanitized ?? null,
+      coApplicantsSanitized ?? null,
+      patentIdSanitized ?? null,
+      patentTitleSanitized ?? null,
+      finalPatentType ?? null,
+      approvalTypeSanitized ?? null,
+      formatDateForMySQL(filingDateSanitized ?? null),
+      formatDateForMySQL(grantingDateSanitized ?? null),
+      formatDateForMySQL(publishingDateSanitized ?? null),
+      finalDocumentLink ?? null,
+      finalGrantDocLink ?? null,
+      authorsSanitized ?? null,
+      id
+    ];
 
     console.log("DEBUG: Running UPDATE query with params:", queryParams);
 
@@ -532,10 +533,10 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async
       return res.status(400).json({ message: e.message || 'File upload error' });
     }
     // Return actual error message for debugging
-    return res.status(500).json({ 
-        message: "Internal server error", 
-        error: e.message,
-        stack: process.env.NODE_ENV === 'development' ? e.stack : undefined
+    return res.status(500).json({
+      message: "Internal server error",
+      error: e.message,
+      stack: process.env.NODE_ENV === 'development' ? e.stack : undefined
     });
   }
 });
@@ -592,7 +593,16 @@ router.delete("/deleteEntry/:id", verifyToken, requireAnyAdmin, async (req, res)
 
 // GET route - Public access (no auth required)
 // Sub-admins with valid token see only their department's data; everyone else sees all.
-router.get("/formGet", async (req, res) => {
+// Public API Rate Limiter: 100 requests per 15 minutes
+const publicApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests, please try again later." }
+});
+
+router.get("/formGet", publicApiLimiter, async (req, res) => {
   try {
     // Pagination parameters
     const pageParam = req.query.page;
@@ -718,7 +728,7 @@ router.get("/downloadExcel", verifyToken, async (req, res) => {
           row.documentLink = `${baseUrl}${row.documentLink}`;
         }
       }
-      
+
       if (row.grantDocumentLink) {
         if (row.grantDocumentLink === 'https://example.com/grant/3') {
           row.grantDocumentLink = '';
