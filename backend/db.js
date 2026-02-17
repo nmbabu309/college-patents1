@@ -132,6 +132,21 @@ const initDb = async () => {
                     console.warn(`Migration notice: ${e.message}`);
                 }
             }
+
+            // Add UNIQUE Constraint for (patentId, email) to prevent duplicates
+            try {
+                // Determine length for TEXT columns if needed (e.g. patentId(50), email(100))
+                // Note: IF NOT EXISTS for index is only supported in newer MariaDB/MySQL versions.
+                // Standard approach: Check if index exists first to avoid error spam.
+                const [indexes] = await connection.query("SHOW INDEX FROM patents WHERE Key_name = 'idx_unique_patent'");
+                if (indexes.length === 0) {
+                    await connection.query("ALTER TABLE patents ADD UNIQUE KEY idx_unique_patent (patentId(50), email(100))");
+                    console.log('✅ Added UNIQUE constraint on (patentId, email)');
+                }
+            } catch (e) {
+                console.warn(`Constraint warning: ${e.message}`);
+            }
+
             console.log('✅ Patent table schema verified');
         }
 

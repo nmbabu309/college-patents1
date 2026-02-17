@@ -209,14 +209,56 @@ const UploadForm = ({ onSuccess, initialData = null, onClose, hideSuccessPopup =
         }
 
         try {
-            const submitData = {
+            let submitData = {
                 ...formData,
                 designation: showOtherDesignation ? formData.customDesignation : formData.designation,
                 authors: showOtherAuthors ? formData.customRole : formData.authors
             };
 
+            // Smart Merging: If updating, only send changed fields
+            if (initialData) {
+                const dirtyData = {};
+                let hasChanges = false;
+
+                Object.keys(submitData).forEach(key => {
+                    // Normalize values for comparison
+                    let originalVal = initialData[key];
+                    let newVal = submitData[key];
+
+                    // Handle Dates (DB ISO vs Form YYYY-MM-DD)
+                    if (originalVal && (key.includes('Date') || typeof originalVal === 'string') && originalVal.includes('T')) {
+                        originalVal = originalVal.split('T')[0];
+                    }
+
+                    // Handle null/undefined vs empty string
+                    const nDesc = (val) => val === null || val === undefined ? '' : String(val).trim();
+
+                    if (nDesc(originalVal) !== nDesc(newVal)) {
+                        dirtyData[key] = newVal;
+                        hasChanges = true;
+                    }
+                });
+
+                // Files are always changes if selected
+                if (selectedFile || selectedGrantFile) {
+                    hasChanges = true;
+                }
+
+                if (!hasChanges) {
+                    toast.success('No changes detected');
+                    setLoading(false);
+                    if (onClose) onClose();
+                    return;
+                }
+
+                // Replace submitData with only dirty fields
+                submitData = dirtyData;
+            }
+
             const form = new FormData();
             // Exclude 'id', 'customDesignation', 'customRole' from spread to avoid duplicates
+            // basic keys are effectively filtered by dirtyData in update mode, or full in create mode
+            // We still need to exclude internal helpers if they leaked into dirtyData (unlikely but safe to keep)
             const excludeKeys = ['id', 'customDesignation', 'customRole'];
             Object.entries(submitData).forEach(([k, v]) => {
                 if (v !== undefined && v !== null && !excludeKeys.includes(k)) form.append(k, v);

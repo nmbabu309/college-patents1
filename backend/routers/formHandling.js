@@ -19,10 +19,20 @@ const __dirname = path.dirname(__filename);
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadPath = path.join(__dirname, '../uploads');
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
+    let subFolder = '';
+
+    if (file.fieldname === 'documentFile') {
+      subFolder = 'published_proofs';
+    } else if (file.fieldname === 'grantDocumentFile') {
+      subFolder = 'grant_documents';
     }
-    cb(null, uploadPath);
+
+    const finalPath = subFolder ? path.join(uploadPath, subFolder) : uploadPath;
+
+    if (!fs.existsSync(finalPath)) {
+      fs.mkdirSync(finalPath, { recursive: true });
+    }
+    cb(null, finalPath);
   },
   filename: (req, file, cb) => {
     const safeName = file.originalname.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\.\-]/g, '');
@@ -165,11 +175,14 @@ router.post("/formEntry", verifyToken, requireAnyAdmin, uploadFields, async (req
   let finalGrantDocLink = req.body.grantDocumentLink || null;
 
   if (docFile) {
-    finalDocumentLink = `/uploads/${docFile.filename}`;
+    // Determine subdirectory based on fieldname, similar to multer config
+    // Multer saves it to uploads/published_proofs/filename
+    // We want to store /uploads/published_proofs/filename in DB
+    finalDocumentLink = `/uploads/published_proofs/${docFile.filename}`;
   }
 
   if (grantFile) {
-    finalGrantDocLink = `/uploads/${grantFile.filename}`;
+    finalGrantDocLink = `/uploads/grant_documents/${grantFile.filename}`;
   }
 
   // if (!finalDocumentLink) {
@@ -235,6 +248,12 @@ router.post("/formEntry", verifyToken, requireAnyAdmin, uploadFields, async (req
     return res.status(200).json({ message: "Patent submitted successfully" });
   } catch (e) {
     console.error('❌ Error in /formEntry:', e);
+
+    // Handle duplicate entry error from DB constraint
+    if (e.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ message: "Duplicate entry: This patent ID is already registered for this email." });
+    }
+
     // Multer/file validation errors -> respond 400
     if (e instanceof multer.MulterError || e?.message === 'Only PDF files are allowed') {
       return res.status(400).json({ message: e.message || 'File upload error' });
@@ -448,7 +467,7 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async
     let finalDocumentLink = entry.documentLink;
 
     if (docFile) {
-      finalDocumentLink = `/uploads/${docFile.filename}`;
+      finalDocumentLink = `/uploads/published_proofs/${docFile.filename}`;
       // Clean up old local file if replacing
       try {
         if (entry.documentLink?.startsWith('/uploads/')) {
@@ -467,7 +486,7 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async
     let finalGrantDocLink = entry.grantDocumentLink;
 
     if (grantFile) {
-      finalGrantDocLink = `/uploads/${grantFile.filename}`;
+      finalGrantDocLink = `/uploads/grant_documents/${grantFile.filename}`;
       try {
         if (entry.grantDocumentLink?.startsWith('/uploads/')) {
           const oldPath = path.join(__dirname, '..', entry.grantDocumentLink.replace(/^\/+/, ''));
