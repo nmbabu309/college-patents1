@@ -10,6 +10,18 @@ import compression from "compression";
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import cron from 'node-cron';
+import { createBackup } from './services/backupService.js';
+
+// ── Validate required environment variables ──
+const requiredEnvVars = ['JWT_SECRET', 'DB_HOST', 'DB_USER', 'DB_NAME'];
+const missingVars = requiredEnvVars.filter(v => !process.env[v]);
+if (missingVars.length > 0) {
+  console.error(`\n❌ Missing required environment variables: ${missingVars.join(', ')}`);
+  console.error('Please check your .env file and ensure all required variables are set.');
+  console.error('Refer to .env.example for the expected configuration.\n');
+  process.exit(1);
+}
 
 // Fix __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -17,6 +29,7 @@ const __dirname = path.dirname(__filename);
 
 const port = process.env.PORT || 3000;
 const app = express();
+app.set('trust proxy', 1); // Trust first proxy (Cloudflare/Nginx/Ngrok)
 
 // Request Logging Middleware with Status Code
 app.use((req, res, next) => {
@@ -60,7 +73,17 @@ app.use(helmet({
   }
 }));
 app.use(compression());
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
+
+// ── Health check endpoint ──
+app.get('/health', async (req, res) => {
+  try {
+    await db.query('SELECT 1');
+    res.json({ status: 'healthy', db: 'connected', timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.status(503).json({ status: 'unhealthy', db: 'disconnected', error: err.message });
+  }
+});
 
 // Ensure uploads directory exists and serve it
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -84,33 +107,21 @@ await dbReady; // Wait for database to be ready
 
 const isLocalOrigin = (origin) => {
   if (!origin) return true;
-  // Match localhost, 127.0.0.1, or private network IP ranges (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
-  // Modified to support http and https
-  return /^(http|https):\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin);
+  // Match localhost, LAN IPs, OR any Ngrok domains
+  return /^(http|https):\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin) || origin.includes('ngrok');
 };
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // console.log(`🔍 CORS Check: ${origin}`);
+    // Check if origin is allowed
+    const allowed = !origin || isLocalOrigin(origin) || (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL);
 
-    // Allow requests with no origin (mobile apps, curl, etc)
-    if (!origin) {
-      return callback(null, true);
+    if (allowed) {
+      callback(null, true);
+    } else {
+      console.warn(`🚫 CORS Rejected: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
     }
-
-    // Allow local network IPs
-    if (isLocalOrigin(origin)) {
-      return callback(null, true);
-    }
-
-    // Allow configured frontend URL (production)
-    if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
-      return callback(null, true);
-    }
-
-    // Reject all others
-    console.warn(`🚫 CORS Rejected: ${origin}`);
-    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   optionsSuccessStatus: 200
@@ -130,9 +141,32 @@ app.use("/login", loginLimiter, loginRoutes);
 app.use("/form", FormRoutes);
 app.use("/admin", AdminRoutes);
 
+// Serve Frontend Static Files (Production)
+const frontendPath = path.join(__dirname, '../frontend/dist');
+if (fs.existsSync(frontendPath)) {
+  console.log('Serving frontend from:', frontendPath);
+  app.use(express.static(frontendPath));
+
+  // Handle SPA routing - serve index.html for all non-API routes
+  // Using regex pattern for compatibility with newer path-to-regexp
+  app.get(/^\/(?!api\/|form\/|login|admin\/).*/, (req, res, next) => {
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
+}
+
 // Global error handler — catches unhandled errors and prevents stack trace leakage
 app.use((err, req, res, next) => {
-  console.error(`❌ Unhandled error on ${req.method} ${req.url}:`, err.message);
+  const errorMsg = `❌ Unhandled error on ${req.method} ${req.url}: ${err.message}`;
+  console.error(errorMsg);
+
+  // Log to file
+  try {
+    const errorLogPath = path.join(__dirname, 'error_log.txt');
+    const logMessage = `[${new Date().toISOString()}] ${errorMsg}\nStack: ${err.stack}\n\n`;
+    fs.appendFileSync(errorLogPath, logMessage);
+  } catch (logErr) {
+    console.error('Failed to write to error log:', logErr);
+  }
 
   // Handle Multer file upload errors
   if (err.code === 'LIMIT_FILE_SIZE') {
@@ -147,5 +181,13 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(port, '0.0.0.0', () => {
-  console.log(`Running at 0.0.0.0:${port}`)
+  console.log(`Running at 0.0.0.0:${port}`);
+  
+  // Initialize Automated Backups
+  // Runs every 3 days at 3:00 AM server time
+  console.log('⏰ Scheduling automated backups for 03:00 AM every 3 days.');
+  cron.schedule('0 3 */3 * *', async () => {
+    console.log(`[${new Date().toISOString()}] Executing scheduled full system backup...`);
+    await createBackup();
+  });
 })

@@ -12,12 +12,18 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Header from "../common/Header";
 import Footer from "../common/Footer";
+import NumericPagination from "../common/NumericPagination";
+import { DEPARTMENTS } from "../../config/constants";
+import SystemActions from "../admin/SystemActions";
+import AuditLogsTable from "../admin/AuditLogsTable";
 
 const AdminPage = () => {
     const { user, isSuperAdmin, isAnyAdmin, isAuthenticated, loading: authLoading } = useAuth();
     const navigate = useNavigate();
 
     const [admins, setAdmins] = useState([]);
+    const [adminPage, setAdminPage] = useState(1);
+    const [adminTotalPages, setAdminTotalPages] = useState(1);
     const [logs, setLogs] = useState([]);
     const [logPage, setLogPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -54,8 +60,7 @@ const AdminPage = () => {
     const [isChangingMyPwd, setIsChangingMyPwd] = useState(false);
     const [showCurrentPwd, setShowCurrentPwd] = useState(false);
     const [showNewPwd, setShowNewPwd] = useState(false);
-
-    const departments = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIML', 'CSD', 'CSM', 'FED', 'MBA'];
+    const [isBackingUp, setIsBackingUp] = useState(false);
 
     useEffect(() => {
         if (!authLoading && !isAuthenticated) {
@@ -125,11 +130,19 @@ const AdminPage = () => {
         }
     };
 
-    const fetchAdmins = async () => {
+    const fetchAdmins = async (page = 1) => {
         try {
             setLoading(true);
-            const response = await api.get("/admin/admins");
-            setAdmins(response.data);
+            const response = await api.get(`/admin/admins?page=${page}&limit=10`);
+            if (response.data && response.data.pagination) {
+                setAdmins(response.data.data);
+                setAdminTotalPages(response.data.pagination.totalPages);
+                setAdminPage(page);
+            } else {
+                setAdmins(response.data);
+                setAdminTotalPages(1);
+                setAdminPage(1);
+            }
         } catch (err) {
             console.error(err);
             toast.error("Failed to fetch admins");
@@ -258,6 +271,21 @@ const AdminPage = () => {
             fetchStats();
         } catch (err) {
             toast.error(err.response?.data?.message || "Failed to delete admin");
+        }
+    };
+
+    const handleManualBackup = async () => {
+        try {
+            setIsBackingUp(true);
+            toast.loading("Creating backup... This may take a moment.", { id: 'backupToast' });
+            const response = await api.post("/admin/backup");
+            toast.success(`Backup created: ${response.data.file}`, { id: 'backupToast' });
+            fetchLogs(1, true);
+        } catch (err) {
+            console.error(err);
+            toast.error(err.response?.data?.message || "Failed to create backup", { id: 'backupToast' });
+        } finally {
+            setIsBackingUp(false);
         }
     };
 
@@ -412,6 +440,7 @@ const AdminPage = () => {
                                                             onClick={() => { setSelectedAdmin(admin); setShowPasswordModal(true); }}
                                                             className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all"
                                                             title="Reset Password"
+                                                            aria-label={`Reset password for ${admin.email}`}
                                                         >
                                                             <Key size={16} />
                                                         </button>
@@ -420,6 +449,7 @@ const AdminPage = () => {
                                                                 onClick={() => { setSelectedAdmin(admin); setNewDepartment(admin.department || ''); setShowDepartmentModal(true); }}
                                                                 className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
                                                                 title="Change Department"
+                                                                aria-label={`Change department for ${admin.email}`}
                                                             >
                                                                 <Building2 size={16} />
                                                             </button>
@@ -428,6 +458,7 @@ const AdminPage = () => {
                                                             onClick={() => handleDeleteAdmin(admin)}
                                                             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                                                             title="Delete Admin"
+                                                            aria-label={`Delete admin ${admin.email}`}
                                                         >
                                                             <Trash2 size={16} />
                                                         </button>
@@ -442,166 +473,39 @@ const AdminPage = () => {
                                     ))
                                 )}
                             </div>
+                            
+                            {/* Admin List Pagination */}
+                            <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+                                <NumericPagination
+                                    currentPage={adminPage}
+                                    totalPages={adminTotalPages}
+                                    onPageChange={(page) => fetchAdmins(page)}
+                                    disabled={loading}
+                                />
+                            </div>
                         </motion.div>
 
-                        {/* Danger Zone - Super Admin Only */}
-                        {isSuperAdmin() && (
-                            <motion.div
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: 0.6 }}
-                                className="bg-white rounded-2xl shadow-sm border border-red-100 overflow-hidden"
-                            >
-                                <div className="p-5 bg-red-50/50 border-b border-red-100">
-                                    <h2 className="text-base font-bold text-red-800 flex items-center gap-2">
-                                        <AlertCircle size={18} className="text-red-500" />
-                                        Danger Zone
-                                    </h2>
-                                </div>
-                                <div className="p-5">
-                                    <p className="text-xs text-slate-500 mb-3">
-                                        Permanently wipe all patent entries. Ensure a backup has been exported first.
-                                    </p>
-                                    <button
-                                        onClick={() => {
-                                            const confirm = window.prompt("Type 'DELETE' to confirm destructive action:");
-                                            if (confirm === "DELETE") {
-                                                api.post("/admin/deleteAll")
-                                                    .then(() => {
-                                                        toast.success("Database reset complete");
-                                                        fetchLogs();
-                                                        fetchStats();
-                                                    })
-                                                    .catch(err => toast.error("Reset failed"));
-                                            }
-                                        }}
-                                        className="w-full py-2.5 bg-white border border-red-200 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-50 hover:border-red-300 transition-all flex items-center justify-center gap-2"
-                                    >
-                                        <Trash2 size={16} />
-                                        Reset Database
-                                    </button>
-                                </div>
-                            </motion.div>
-                        )}
+                        <SystemActions 
+                            isSuperAdmin={isSuperAdmin()} 
+                            handleManualBackup={handleManualBackup} 
+                            isBackingUp={isBackingUp} 
+                            api={api} 
+                            toast={toast} 
+                            fetchLogs={fetchLogs} 
+                            fetchStats={fetchStats} 
+                        />
                     </div>
 
                     {/* Right Column: Activity Logs */}
-                    <motion.div
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.5 }}
-                        className="bg-white rounded-2xl shadow-sm border border-slate-200/80 xl:col-span-2 flex flex-col h-full overflow-hidden"
-                    >
-                        <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/50">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-slate-100 text-slate-600 rounded-xl">
-                                    <Activity size={22} />
-                                </div>
-                                <div>
-                                    <h2 className="text-lg font-bold text-slate-800">Audit Trail</h2>
-                                    <p className="text-xs text-slate-400">System activity log</p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => fetchLogs(1, true)}
-                                disabled={isRefreshing}
-                                className={`p-2.5 bg-[#1B2845] text-white rounded-xl shadow-sm hover:bg-[#243656] transition-all ${isRefreshing ? 'opacity-80' : ''}`}
-                            >
-                                <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} />
-                            </button>
-                        </div>
-
-                        <div className="flex-1 overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="border-b border-slate-100">
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/50 w-24">Action</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/50 w-56">User</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/50">Details</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/50 w-40 text-right">Time</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                    {logs.length === 0 ? (
-                                        <tr>
-                                            <td colSpan="4" className="px-6 py-16 text-center">
-                                                <div className="flex flex-col items-center justify-center gap-3 opacity-50">
-                                                    <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center">
-                                                        <Search size={28} className="text-slate-400" />
-                                                    </div>
-                                                    <p className="text-slate-500 font-medium text-sm">No activity recorded yet</p>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        logs.map((log, index) => (
-                                            <motion.tr
-                                                key={log.id}
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                transition={{ delay: index * 0.03 }}
-                                                className="hover:bg-slate-50/80 transition-colors"
-                                            >
-                                                <td className="px-6 py-4 align-top">
-                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase border ${log.action === 'DELETE' || log.action === 'DELETE_ALL' ? 'bg-red-50 text-red-600 border-red-100' :
-                                                        log.action === 'CREATE' || log.action.includes('CREATE') ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                                            log.action === 'UPDATE' || log.action === 'BATCH_UPDATE' || log.action.includes('UPDATE') || log.action.includes('PASSWORD') ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                                                'bg-slate-50 text-slate-600 border-slate-100'
-                                                        }`}>
-                                                        <span className={`w-1.5 h-1.5 rounded-full ${log.action === 'DELETE' || log.action === 'DELETE_ALL' ? 'bg-red-500' :
-                                                            log.action === 'CREATE' || log.action.includes('CREATE') ? 'bg-emerald-500' :
-                                                                log.action === 'UPDATE' || log.action === 'BATCH_UPDATE' || log.action.includes('UPDATE') || log.action.includes('PASSWORD') ? 'bg-amber-500' :
-                                                                    'bg-slate-500'
-                                                            }`}></span>
-                                                        {log.action}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 align-top">
-                                                    <div className="flex items-center gap-2.5">
-                                                        <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500">
-                                                            {log.user_email?.charAt(0).toUpperCase()}
-                                                        </div>
-                                                        <span className="text-sm font-medium text-slate-700">{log.user_email}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-slate-600 leading-relaxed">
-                                                    {log.details}
-                                                </td>
-                                                <td className="px-6 py-4 text-xs text-slate-400 font-mono text-right whitespace-nowrap">
-                                                    {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    <br />
-                                                    <span className="opacity-75">{new Date(log.timestamp).toLocaleDateString()}</span>
-                                                </td>
-                                            </motion.tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Pagination Footer */}
-                        <div className="p-5 border-t border-slate-100 flex justify-between items-center bg-slate-50/50">
-                            <span className="text-xs font-medium text-slate-400">
-                                Page {logPage} of {totalPages}
-                            </span>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => fetchLogs(logPage - 1)}
-                                    disabled={logPage === 1}
-                                    className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2"
-                                >
-                                    <ChevronLeft size={16} /> Previous
-                                </button>
-                                <button
-                                    onClick={() => fetchLogs(logPage + 1)}
-                                    disabled={logPage === totalPages}
-                                    className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2"
-                                >
-                                    Next <ChevronRight size={16} />
-                                </button>
-                            </div>
-                        </div>
-                    </motion.div>
+                    <div className="xl:col-span-2 flex flex-col h-full">
+                        <AuditLogsTable 
+                            logs={logs} 
+                            fetchLogs={fetchLogs} 
+                            logPage={logPage} 
+                            totalPages={totalPages} 
+                            isRefreshing={isRefreshing} 
+                        />
+                    </div>
                 </div>
             </main>
 
@@ -791,7 +695,7 @@ const AdminPage = () => {
                                         required
                                     >
                                         <option value="">Select Department</option>
-                                        {departments.map(dept => (
+                                        {DEPARTMENTS.map(dept => (
                                             <option key={dept} value={dept}>{dept}</option>
                                         ))}
                                     </select>

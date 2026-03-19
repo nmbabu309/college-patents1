@@ -9,23 +9,95 @@ import { fileURLToPath } from "url";
 import multer from 'multer';
 import fs from 'fs';
 import jwt from 'jsonwebtoken';
+import { logAction } from "../utils/logger.js";
+import Joi from 'joi';
 
 const router = Router();
+
+// ── Joi validation schemas ──
+const ALLOWED_DEPARTMENTS = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIML', 'CSD', 'CSM', 'FED', 'MBA'];
+
+const patentSchema = Joi.object({
+  email: Joi.string().email().required().messages({
+    'string.email': 'Please provide a valid email address',
+    'any.required': 'Email is required'
+  }),
+  facultyName: Joi.string().min(1).max(255).required().messages({
+    'any.required': 'Faculty name is required'
+  }),
+  department: Joi.string().valid(...ALLOWED_DEPARTMENTS).required().messages({
+    'any.only': `Department must be one of: ${ALLOWED_DEPARTMENTS.join(', ')}`,
+    'any.required': 'Department is required'
+  }),
+  designation: Joi.string().min(1).max(255).required().messages({
+    'any.required': 'Designation is required'
+  }),
+  caste: Joi.string().allow('', null).optional(),
+  patentId: Joi.string().min(1).max(255).required().messages({
+    'any.required': 'Patent ID is required'
+  }),
+  patentTitle: Joi.string().min(1).max(1000).required().messages({
+    'any.required': 'Patent title is required'
+  }),
+  patentType: Joi.string().valid('Utility', 'Design').default('Utility'),
+  approvalType: Joi.string().valid('Published', 'Granted').default('Published'),
+  authors: Joi.string().allow('', null).optional(),
+  coApplicants: Joi.string().allow('', null).optional(),
+  filingDate: Joi.string().min(1).required().messages({
+    'any.required': 'Filing date is required'
+  }),
+  publishingDate: Joi.string().min(1).required().messages({
+    'any.required': 'Publishing date is required'
+  }),
+  grantingDate: Joi.string().allow('', null).optional(),
+}).options({ stripUnknown: true });
+
+// Validation middleware factory
+const validate = (schema) => (req, res, next) => {
+  const { error, value } = schema.validate(req.body, { abortEarly: false });
+  if (error) {
+    const messages = error.details.map(d => d.message).join('; ');
+    return res.status(400).json({ message: messages });
+  }
+  req.validatedBody = value;
+  next();
+};
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Configure multer for local disk uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadPath = path.join(__dirname, '../uploads');
+    let subfolder = '';
+    if (file.fieldname === 'documentFile') {
+      subfolder = 'proof_of_publish';
+    } else if (file.fieldname === 'grantDocumentFile') {
+      subfolder = 'proof_of_grant';
+    }
+
+    const uploadPath = path.join(__dirname, '../uploads', subfolder);
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
     }
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    const safeName = file.originalname.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\.\-]/g, '');
-    cb(null, `${Date.now()}-${safeName}`);
+    // Attempt to extract values from req.body (depends on frontend appending them BEFORE files)
+    const rawPatentId = req.body.patentId || 'Unknown-Patent';
+    const rawEmail = req.body.email || 'Unknown-Email';
+
+    // Sanitize to prevent directory traversal or filesystem issues
+    const safePatentId = rawPatentId.replace(/[^a-zA-Z0-9-]/g, '');
+    const cleanEmail = rawEmail.split('@')[0].replace(/[^a-zA-Z0-9.\-]/g, ''); // Extract just the username piece
+
+    // Determine document type
+    const typeLabel = file.fieldname === 'documentFile' ? 'publish' : 'grant';
+
+    // Format: [Patent ID]_[User Email]_[Type].pdf
+    // Append a tiny random string if needed, but uniqueness is naturally guaranteed per user per patent.
+    const finalName = `${safePatentId}_${cleanEmail}_${typeLabel}.pdf`;
+    
+    cb(null, finalName);
   }
 });
 
@@ -48,14 +120,6 @@ const uploadFields = upload.fields([
 
 
 // Helper functions removed - role is now in JWT token
-
-const logAction = async (userEmail, action, details) => {
-  try {
-    await db.query("INSERT INTO audit_logs (user_email, action, details) VALUES (?, ?, ?)", [userEmail, action, details]);
-  } catch (err) {
-    console.error("Failed to log action:", err);
-  }
-};
 
 // Helper function to format date for MySQL
 const formatDateForMySQL = (dateString) => {
@@ -107,31 +171,23 @@ const formatDateForMySQL = (dateString) => {
   }
 };
 
-// Validate date requirements based on patent type
+// Validate date requirements - Filing and Publishing are required, Granting is optional
 const validatePatentDates = (patentType, filingDate, grantingDate, publishingDate) => {
   if (!patentType || (patentType !== 'Utility' && patentType !== 'Design')) {
     return { valid: false, message: "Patent type must be either 'Utility' or 'Design'" };
   }
 
-  if (patentType === 'Utility') {
-    if (!filingDate || !formatDateForMySQL(filingDate)) {
-      return { valid: false, message: "Filing date is required for Utility patents" };
-    }
-    if (!grantingDate || !formatDateForMySQL(grantingDate)) {
-      return { valid: false, message: "Granting date is required for Utility patents" };
-    }
-    // publishingDate is optional for Utility patents
-  } else if (patentType === 'Design') {
-    if (!filingDate || !formatDateForMySQL(filingDate)) {
-      return { valid: false, message: "Filing date is required for Design patents" };
-    }
-    if (!grantingDate || !formatDateForMySQL(grantingDate)) {
-      return { valid: false, message: "Granting date is required for Design patents" };
-    }
-    if (!publishingDate || !formatDateForMySQL(publishingDate)) {
-      return { valid: false, message: "Publishing date is required for Design patents" };
-    }
+  // Filing date is required for all patent types
+  if (!filingDate || !formatDateForMySQL(filingDate)) {
+    return { valid: false, message: "Filing date is required" };
   }
+
+  // Publishing date is required for all patent types
+  if (!publishingDate || !formatDateForMySQL(publishingDate)) {
+    return { valid: false, message: "Publishing date is required" };
+  }
+
+  // Granting date is optional for all patent types
 
   return { valid: true };
 };
@@ -139,6 +195,19 @@ const validatePatentDates = (patentType, filingDate, grantingDate, publishingDat
 
 
 router.post("/formEntry", verifyToken, requireAnyAdmin, uploadFields, async (req, res) => {
+  // Validate request body with Joi schema
+  const { error: validationError, value: validatedData } = patentSchema.validate(req.body, { abortEarly: false });
+  if (validationError) {
+    // Clean up any uploaded files since validation failed
+    try {
+      if (req.files?.documentFile?.[0]?.path) fs.unlinkSync(req.files.documentFile[0].path);
+      if (req.files?.grantDocumentFile?.[0]?.path) fs.unlinkSync(req.files.grantDocumentFile[0].path);
+    } catch (cleanupErr) { /* ignore cleanup errors */ }
+
+    const messages = validationError.details.map(d => d.message).join('; ');
+    return res.status(400).json({ message: messages });
+  }
+
   const {
     email,
     facultyName,
@@ -154,7 +223,7 @@ router.post("/formEntry", verifyToken, requireAnyAdmin, uploadFields, async (req
     grantingDate,
     publishingDate,
     authors,
-  } = req.body;
+  } = validatedData;
 
   // Require uploaded PDF for published document (mandatory)
   const docFile = req.files?.documentFile?.[0];
@@ -164,8 +233,8 @@ router.post("/formEntry", verifyToken, requireAnyAdmin, uploadFields, async (req
     return res.status(400).json({ message: "Proof of Publish (PDF) is required." });
   }
 
-  const finalDocumentLink = `/uploads/${docFile.filename}`;
-  const finalGrantDocLink = grantFile ? `/uploads/${grantFile.filename}` : null;
+  const finalDocumentLink = docFile ? `/uploads/proof_of_publish/${docFile.filename}` : null;
+  const finalGrantDocLink = grantFile ? `/uploads/proof_of_grant/${grantFile.filename}` : null;
 
   // Default patentType to 'Utility' if not provided (backward compatibility)
   const finalPatentType = patentType || 'Utility';
@@ -226,12 +295,145 @@ router.post("/formEntry", verifyToken, requireAnyAdmin, uploadFields, async (req
     return res.status(200).json({ message: "Patent submitted successfully" });
   } catch (e) {
     console.error('❌ Error in /formEntry:', e);
+
+    // Clean up uploaded files on failure
+    try {
+      if (docFile && docFile.path) {
+        fs.unlinkSync(docFile.path);
+        console.log('Cleaned up document file after failure:', docFile.path);
+      }
+      if (grantFile && grantFile.path) {
+        fs.unlinkSync(grantFile.path);
+        console.log('Cleaned up grant file after failure:', grantFile.path);
+      }
+    } catch (cleanupErr) {
+      console.error('Failed to clean up files:', cleanupErr);
+    }
+
     // Multer/file validation errors -> respond 400
     if (e instanceof multer.MulterError || e?.message === 'Only PDF files are allowed') {
       return res.status(400).json({ message: e.message || 'File upload error' });
     }
     return res.status(500).json({ message: "Internal server error" });
   }
+});
+
+// Bulk import endpoint - accepts URL-based document links (no file upload required)
+router.post("/bulkImport", verifyToken, requireAnyAdmin, async (req, res) => {
+  const entries = req.body;
+
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return res.status(400).json({ message: "Array of patent entries required" });
+  }
+
+  const results = {
+    successful: [],
+    failed: [],
+    total: entries.length
+  };
+
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    const rowNumber = i + 2; // Excel row number (1-indexed + header)
+
+    const {
+      email,
+      facultyName,
+      designation,
+      department,
+      caste,
+      coApplicants,
+      patentId,
+      patentTitle,
+      patentType,
+      approvalType,
+      filingDate,
+      grantingDate,
+      publishingDate,
+      authors,
+      documentLink,
+      grantDocumentLink
+    } = entry;
+
+    try {
+      // Validate required fields
+      if (!email || !facultyName || !department || !patentId || !patentTitle) {
+        throw new Error("Missing required fields: email, facultyName, department, patentId, patentTitle");
+      }
+
+      // Validate patent type
+      const finalPatentType = patentType || 'Utility';
+      if (finalPatentType !== 'Utility' && finalPatentType !== 'Design') {
+        throw new Error(`Invalid patent type: ${finalPatentType}. Must be 'Utility' or 'Design'`);
+      }
+
+      // Validate dates
+      const dateValidation = validatePatentDates(finalPatentType, filingDate, grantingDate, publishingDate);
+      if (!dateValidation.valid) {
+        throw new Error(dateValidation.message);
+      }
+
+      // Check department access for sub-admins
+      if (req.user.role === 'sub_admin' && department !== req.user.department) {
+        throw new Error(`You can only add patents for your department (${req.user.department})`);
+      }
+
+      // Check for duplicates
+      const [existingRows] = await db.query(
+        "SELECT 1 FROM patents WHERE patentId = ? AND email = ?",
+        [patentId, email]
+      );
+      if (existingRows.length > 0) {
+        throw new Error("Duplicate entry: This patent already exists for this email");
+      }
+
+      // Insert into database
+      await db.query(
+        `INSERT INTO patents 
+        (email, facultyName, designation, department, caste, coApplicants, patentId, patentTitle, patentType, approvalType, filingDate, grantingDate, publishingDate, documentLink, grantDocumentLink, authors)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          email,
+          facultyName,
+          designation || null,
+          department,
+          caste || null,
+          coApplicants || null,
+          patentId,
+          patentTitle,
+          finalPatentType,
+          approvalType || 'Published',
+          formatDateForMySQL(filingDate),
+          formatDateForMySQL(grantingDate),
+          formatDateForMySQL(publishingDate),
+          documentLink || null,
+          grantDocumentLink || null,
+          authors || null
+        ]
+      );
+
+      results.successful.push({ rowNumber, patentId, patentTitle });
+
+    } catch (err) {
+      results.failed.push({
+        rowNumber,
+        patentId: patentId || 'N/A',
+        patentTitle: patentTitle || 'N/A',
+        error: err.message
+      });
+    }
+  }
+
+  await logAction(
+    req.user.userEmail,
+    "BULK_IMPORT",
+    `Bulk import: ${results.successful.length} successful, ${results.failed.length} failed`
+  );
+
+  return res.status(200).json({
+    message: "Bulk import completed",
+    ...results
+  });
 });
 
 router.put("/formEntryBatchUpdate", verifyToken, requireAnyAdmin, async (req, res) => {
@@ -401,7 +603,7 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async
     const docFile = req.files?.documentFile?.[0];
     let finalDocumentLink = entry.documentLink;
     if (docFile) {
-      finalDocumentLink = `/uploads/${docFile.filename}`;
+      finalDocumentLink = `/uploads/proof_of_publish/${docFile.filename}`;
       try {
         if (entry.documentLink?.startsWith('/uploads/')) {
           const oldPath = path.join(__dirname, '..', entry.documentLink.replace(/^\/+/, ''));
@@ -416,7 +618,7 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async
     const grantFile = req.files?.grantDocumentFile?.[0];
     let finalGrantDocLink = entry.grantDocumentLink;
     if (grantFile) {
-      finalGrantDocLink = `/uploads/${grantFile.filename}`;
+      finalGrantDocLink = `/uploads/proof_of_grant/${grantFile.filename}`;
       try {
         if (entry.grantDocumentLink?.startsWith('/uploads/')) {
           const oldPath = path.join(__dirname, '..', entry.grantDocumentLink.replace(/^\/+/, ''));
@@ -503,18 +705,24 @@ router.delete("/deleteEntry/:id", verifyToken, requireAnyAdmin, async (req, res)
     }
 
     // 2. Delete
-    // If files stored locally, remove them
+    // If files stored locally, strictly try to delete them
     try {
       if (entry.documentLink?.startsWith('/uploads/')) {
         const filePath = path.join(__dirname, '..', entry.documentLink.replace(/^\/+/, ''));
-        await fs.promises.unlink(filePath).catch(() => { });
+        if (fs.existsSync(filePath)) {
+          await fs.promises.unlink(filePath);
+          console.log(`[Delete] Removed physical file: ${filePath}`);
+        }
       }
       if (entry.grantDocumentLink?.startsWith('/uploads/')) {
         const filePath = path.join(__dirname, '..', entry.grantDocumentLink.replace(/^\/+/, ''));
-        await fs.promises.unlink(filePath).catch(() => { });
+        if (fs.existsSync(filePath)) {
+          await fs.promises.unlink(filePath);
+          console.log(`[Delete] Removed physical file: ${filePath}`);
+        }
       }
     } catch (err) {
-      console.error('Failed to remove file on delete:', err);
+      console.error('[Delete] Failed to physically remove file on delete (it might already be missing):', err);
     }
 
     await db.query("DELETE FROM patents WHERE id = ?", [id]);
@@ -538,60 +746,61 @@ router.get("/formGet", async (req, res) => {
     // Pagination parameters
     const pageParam = req.query.page;
     const limitParam = req.query.limit;
-    const search = req.query.search || '';
+    const filtersParam = req.query.filters;
+    const sortKeyParam = req.query.sortKey;
+    const sortDirectionParam = req.query.sortDirection;
 
     const page = pageParam ? parseInt(pageParam, 10) : null;
     const limit = limitParam ? parseInt(limitParam, 10) : null;
+    
+    let filters = {};
+    if (filtersParam) {
+      try { filters = JSON.parse(filtersParam); } catch (e) {}
+    }
 
     // Soft Authentication
     let user = null;
     const token = req.headers.authorization?.split(" ")[1];
     if (token) {
       try {
-        // Verify token to identify sub-admins
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         user = decoded;
-      } catch (err) {
-        // Ignore invalid tokens for public view
-      }
+      } catch (err) {}
     }
 
     console.log('📊 /formGet called:', {
-      page, limit, search,
+      page, limit, filters, sortKeyParam, sortDirectionParam,
       userRole: user?.role || 'public',
       userDept: user?.department || 'N/A'
     });
 
-    let searchCondition = '';
+    let conditions = [];
     let searchParams = [];
 
     // DEPARTMENT FILTERING FOR SUB-ADMINS ONLY
     if (user && user.role === 'sub_admin') {
-      searchCondition = 'WHERE department = ?';
+      conditions.push('department = ?');
       searchParams.push(user.department);
+    }
 
-      if (search) {
-        searchCondition += ` AND (
-          facultyName LIKE ? OR
-          email LIKE ? OR
-          patentTitle LIKE ? OR
-          patentId LIKE ?)`;
-        const searchTerm = `%${search}%`;
-        searchParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
-      }
-    } else {
-      // Public Users & Super Admins -> Show All
-      if (search) {
-        searchCondition = `WHERE 
-          facultyName LIKE ? OR
-          email LIKE ? OR
-          department LIKE ? OR
-          patentTitle LIKE ? OR
-          patentId LIKE ?`;
-        const searchTerm = `%${search}%`;
-        searchParams.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+    // Process dynamic filters
+    const allowedColumns = ['facultyName', 'email', 'department', 'designation', 'caste', 'patentId', 'patentTitle', 'authors', 'coApplicants', 'patentType', 'approvalType', 'filingDate', 'publishingDate', 'grantingDate'];
+    for (const [key, value] of Object.entries(filters)) {
+      if (value && allowedColumns.includes(key)) {
+        conditions.push(`${key} LIKE ?`);
+        searchParams.push(`%${value}%`);
       }
     }
+
+    const searchCondition = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    // Secure sorting
+    const safeSortKey = allowedColumns.includes(sortKeyParam) ? sortKeyParam : 'id';
+    const safeSortDirection = sortDirectionParam === 'desc' ? 'DESC' : 'ASC';
+    
+    // For id, we originally defaulted to DESC, let's keep that default if no sortKey provided
+    const finalSortDirection = (!sortKeyParam) ? 'DESC' : safeSortDirection;
+    const orderClause = `ORDER BY \`${safeSortKey}\` ${finalSortDirection}`;
 
     // Pagination Logic
     if (page && limit && !isNaN(page) && !isNaN(limit) && page > 0 && limit > 0) {
@@ -606,7 +815,7 @@ router.get("/formGet", async (req, res) => {
 
       // Get paginated data
       const [rows] = await db.query(
-        `SELECT * FROM patents ${searchCondition} ORDER BY id DESC LIMIT ? OFFSET ?`,
+        `SELECT * FROM patents ${searchCondition} ${orderClause} LIMIT ? OFFSET ?`,
         [...searchParams, limit, offset]
       );
 
@@ -621,7 +830,7 @@ router.get("/formGet", async (req, res) => {
       });
     } else {
       // No pagination - return all (filtered)
-      const [rows] = await db.query(`SELECT * FROM patents ${searchCondition} ORDER BY id DESC`, searchParams);
+      const [rows] = await db.query(`SELECT * FROM patents ${searchCondition} ${orderClause}`, searchParams);
       return res.json(rows);
     }
   } catch (e) {
@@ -631,19 +840,30 @@ router.get("/formGet", async (req, res) => {
 });
 
 
-// Excel download - requires authentication; sub-admins get department-filtered data
-router.get("/downloadExcel", verifyToken, async (req, res) => {
+// Excel download - Public access (no auth required) — supports optional filters
+router.get("/downloadExcel", async (req, res) => {
   try {
-    // Filter by department for sub-admins only
-    let query = "SELECT * FROM patents";
-    let params = [];
+    // Build filter conditions (same logic as /formGet)
+    const filtersParam = req.query.filters;
+    const filters = filtersParam ? JSON.parse(filtersParam) : {};
+    const allowedFilterColumns = ['facultyName', 'email', 'department', 'designation', 'caste', 'patentId', 'patentTitle', 'authors', 'coApplicants', 'patentType', 'approvalType', 'filingDate', 'publishingDate', 'grantingDate'];
 
-    if (req.user && req.user.role === 'sub_admin') {
-      query += " WHERE department = ?";
-      params.push(req.user.department);
+    let conditions = [];
+    let searchParams = [];
+
+    for (const [key, value] of Object.entries(filters)) {
+      if (value && allowedFilterColumns.includes(key)) {
+        conditions.push(`\`${key}\` LIKE ?`);
+        searchParams.push(`%${value}%`);
+      }
     }
 
-    const [rows] = await db.query(query, params);
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+    const query = `SELECT * FROM patents ${whereClause} ORDER BY id DESC`;
+    const [rows] = await db.query(query, searchParams);
+
+    // Construct base URL for document links
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
 
     // Create workbook + sheet
     const workbook = new ExcelJS.Workbook();
@@ -679,8 +899,8 @@ router.get("/downloadExcel", verifyToken, async (req, res) => {
       { header: "Filing Date", key: "filingDate", width: 20 },
       { header: "Publishing Date", key: "publishingDate", width: 20 },
       { header: "Granting Date", key: "grantingDate", width: 20 },
-      { header: "Proof of Publish", key: "documentLink", width: 40 },
-      { header: "Proof of Grant", key: "grantDocumentLink", width: 40 },
+      { header: "Proof of Publish Link", key: "documentLink", width: 50 },
+      { header: "Proof of Grant Link", key: "grantDocumentLink", width: 50 },
     ];
 
     // Set widths
@@ -711,11 +931,27 @@ router.get("/downloadExcel", verifyToken, async (req, res) => {
 
     // 3. Add Data Rows
     rows.forEach((row) => {
-      const rowData = columns.map((col) => row[col.key]);
+      // Process document links to be absolute URLs
+      let docLink = row.documentLink;
+      if (docLink && docLink.startsWith('/uploads/')) {
+        docLink = `${baseUrl}${docLink}`;
+      }
+
+      let grantLink = row.grantDocumentLink;
+      if (grantLink && grantLink.startsWith('/uploads/')) {
+        grantLink = `${baseUrl}${grantLink}`;
+      }
+
+      const rowData = columns.map((col) => {
+        if (col.key === 'documentLink') return docLink;
+        if (col.key === 'grantDocumentLink') return grantLink;
+        return row[col.key];
+      });
+
       const newRow = worksheet.addRow(rowData);
 
-      // Style Data Cells: Alignment and Wrap Text for readability
-      newRow.eachCell({ includeEmpty: true }, (cell) => {
+      // Style Data Cells
+      newRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
         cell.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
         cell.border = {
           top: { style: "thin" },
@@ -723,10 +959,18 @@ router.get("/downloadExcel", verifyToken, async (req, res) => {
           bottom: { style: "thin" },
           right: { style: "thin" },
         };
+
+        // Add Hyperlink logic for document columns (16 and 17 are the link columns based on array index + 1)
+        if ((colNumber === 16 || colNumber === 17) && cell.value && cell.value.toString().startsWith('http')) {
+          cell.value = {
+            text: cell.value,
+            hyperlink: cell.value,
+            tooltip: 'Click to open document'
+          };
+          cell.font = { color: { argb: 'FF0000FF' }, underline: true };
+        }
       });
     });
-
-
 
     // Response headers for browser download
     res.setHeader(

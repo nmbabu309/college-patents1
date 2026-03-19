@@ -8,7 +8,14 @@ export const getBaseUrl = () => {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  // Fallback for local development without env var
+  
+  // If accessing through Ngrok or a public production URL, the backend is hosting the frontend directly.
+  // We should NOT append :3000, we should just use the exact same origin (port 443/80).
+  if (window.location.hostname.includes('ngrok') || (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !window.location.hostname.startsWith('192.168.'))) {
+    return window.location.origin;
+  }
+  
+  // Fallback for local Vite development (where frontend is on 5173 and backend is on 3000)
   return `http://${window.location.hostname}:3000`;
 };
 
@@ -19,7 +26,9 @@ const api = axios.create({
 // Add a request interceptor to include the token
 api.interceptors.request.use(
   (config) => {
-    console.log(`📡 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    if (import.meta.env.DEV) {
+      console.log(`📡 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    }
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -27,7 +36,9 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error("❌ API Request Error:", error);
+    if (import.meta.env.DEV) {
+      console.error("❌ API Request Error:", error);
+    }
     return Promise.reject(error);
   }
 );
@@ -35,12 +46,16 @@ api.interceptors.request.use(
 // Add a response interceptor for easier debugging
 api.interceptors.response.use(
   (response) => {
-    console.log(`✅ API Response [${response.status}]: ${response.config.url}`);
+    if (import.meta.env.DEV) {
+      console.log(`✅ API Response [${response.status}]: ${response.config.url}`);
+    }
     return response;
   },
   (error) => {
     if (error.response) {
-      console.error(`❌ API Error [${error.response.status}]: ${error.config.url}`, error.response.data);
+      if (import.meta.env.DEV) {
+        console.error(`❌ API Error [${error.response.status}]: ${error.config.url}`, error.response.data);
+      }
 
       // Auto-logout on 401 (expired/invalid token) — skip for login endpoint
       if (error.response.status === 401 && !error.config.url?.includes('/login')) {

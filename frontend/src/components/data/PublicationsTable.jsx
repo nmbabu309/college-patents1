@@ -48,38 +48,41 @@ const PublicationsTable = forwardRef(({ showActions = false, externalFilters = {
   const [editItem, setEditItem] = useState(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
 
-  // Expose refresh method to parent component
+  // Expose refresh method and filter state to parent component
   useImperativeHandle(ref, () => ({
-    refresh: fetchData
+    refresh: fetchData,
+    getFilters: () => filters,
+    getTotalRecords: () => totalRecords,
   }));
 
   useEffect(() => {
-    fetchData();
-  }, [isAuthenticated, isAnyAdmin, currentPage, itemsPerPage]);
+    const timeoutId = setTimeout(() => {
+      fetchData();
+    }, 400); // 400ms debounce
+    return () => clearTimeout(timeoutId);
+  }, [isAuthenticated, isAnyAdmin, currentPage, itemsPerPage, filters, sortConfig]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      console.log('Fetching with pagination:', { page: currentPage, limit: itemsPerPage });
 
-      // Use server-side pagination
+      // Use server-side pagination, filtering, sorting
       const response = await api.get("/form/formGet", {
         params: {
           page: currentPage,
-          limit: itemsPerPage
+          limit: itemsPerPage,
+          filters: JSON.stringify(filters),
+          sortKey: sortConfig.key || '',
+          sortDirection: sortConfig.direction || 'asc'
         }
       });
 
-      console.log('API Response:', response.data);
-
       // Handle paginated response
       if (response.data.data) {
-        console.log('Using paginated response, records:', response.data.data.length);
         setData(response.data.data);
         setTotalRecords(response.data.pagination.total);
         setTotalPages(response.data.pagination.totalPages);
       } else {
-        console.log('Using non-paginated response, records:', response.data.length);
         // Backwards compatible: handle non-paginated response
         setData(response.data);
         setTotalRecords(response.data.length);
@@ -165,39 +168,8 @@ const PublicationsTable = forwardRef(({ showActions = false, externalFilters = {
     setCurrentPage(1); // Reset to first page on filter change
   };
 
-  // Client-side filtering (on current page data)
-  const filteredData = useMemo(() => {
-    return data.filter((item) => {
-      return Object.entries(filters).every(([key, searchTerm]) => {
-        if (!searchTerm) return true;
-        const itemValue = item[key]?.toString().toLowerCase() || "";
-        return itemValue.includes(searchTerm.toLowerCase());
-      });
-    });
-  }, [data, filters]);
-
-  // Client-side sorting (on current page data)
-  const sortedData = useMemo(() => {
-    let sortableItems = [...filteredData];
-    if (sortConfig.key !== null) {
-      sortableItems.sort((a, b) => {
-        const valA = a[sortConfig.key] ? String(a[sortConfig.key]).toLowerCase() : '';
-        const valB = b[sortConfig.key] ? String(b[sortConfig.key]).toLowerCase() : '';
-
-        if (valA < valB) {
-          return sortConfig.direction === 'asc' ? -1 : 1;
-        }
-        if (valA > valB) {
-          return sortConfig.direction === 'asc' ? 1 : -1;
-        }
-        return 0;
-      });
-    }
-    return sortableItems;
-  }, [filteredData, sortConfig]);
-
-  // Use sorted data directly (already paginated from server)
-  const currentItems = sortedData;
+  // Filtering and Sorting are now handled entirely server-side
+  const currentItems = data;
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
@@ -360,6 +332,7 @@ const PublicationsTable = forwardRef(({ showActions = false, externalFilters = {
                                   onClick={() => handleEditClick(row)}
                                   className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/80 rounded-lg transition-all hover:scale-105 active:scale-95"
                                   title="Edit Entry"
+                                  aria-label={`Edit patent ${row.patentTitle || row.patentId}`}
                                 >
                                   <Edit size={16} />
                                 </button>
@@ -367,6 +340,7 @@ const PublicationsTable = forwardRef(({ showActions = false, externalFilters = {
                                   onClick={() => handleDeleteClick(row)}
                                   className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50/80 rounded-lg transition-all hover:scale-105 active:scale-95"
                                   title="Delete Entry"
+                                  aria-label={`Delete patent ${row.patentTitle || row.patentId}`}
                                 >
                                   <Trash2 size={16} />
                                 </button>

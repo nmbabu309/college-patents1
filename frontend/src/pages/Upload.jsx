@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Download, Upload as UploadIcon, FileSpreadsheet, ChevronLeft, Database, Info } from "lucide-react";
 import toast from 'react-hot-toast';
 import Header from "../components/common/Header";
@@ -20,11 +20,30 @@ const Upload = () => {
 
   const tableRef = useRef();
 
+  // Unsaved changes warning
+  const hasUnsavedChanges = useRef(false);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
   const handleSuccess = () => {
+    hasUnsavedChanges.current = false;
     setRefreshTrigger((prev) => prev + 1);
   };
 
   const onFormChange = (formattedData) => {
+    // Track unsaved changes
+    const hasContent = Object.values(formattedData).some(v => v && String(v).trim().length > 0);
+    hasUnsavedChanges.current = hasContent;
+
     const filters = {};
     let hasSearchable = false;
 
@@ -93,6 +112,54 @@ const Upload = () => {
     } catch (err) {
       console.error("Download failed", err);
       toast.error("Failed to download template");
+    }
+  };
+
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportData = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+
+    try {
+      // Get current filters from the table
+      const currentFilters = tableRef.current?.getFilters() || {};
+      const hasActiveFilters = Object.values(currentFilters).some(v => v && String(v).trim().length > 0);
+
+      // Build query params
+      const params = {};
+      if (hasActiveFilters) {
+        params.filters = JSON.stringify(currentFilters);
+      }
+
+      const response = await api.get("/form/downloadExcel", {
+        params,
+        responseType: "arraybuffer", // Important for binary data
+      });
+
+      const excelMimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      const blob = new Blob([response.data], { type: excelMimeType });
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const filename = hasActiveFilters ? "patents-filtered.xlsx" : "patents.xlsx";
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      if (hasActiveFilters) {
+        toast.success("Filtered database exported successfully");
+      } else {
+        toast.success("Database exported successfully");
+      }
+    } catch (err) {
+      console.error("Export failed", err);
+      toast.error("Failed to export database");
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -171,10 +238,8 @@ const Upload = () => {
 
                 <div className="my-1.5 border-t border-slate-100" />
 
-                <a
-                  href="/form/downloadExcel"
-                  target="_blank"
-                  download
+                <button
+                  onClick={handleExportData}
                   className="w-full flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 hover:border-slate-200 hover:bg-slate-100/50 transition-all text-left"
                 >
                   <div className="w-8 h-8 rounded-lg bg-white text-[#1B2845] flex items-center justify-center shrink-0 shadow-sm">
@@ -184,7 +249,30 @@ const Upload = () => {
                     <span className="block font-semibold text-slate-700 text-sm">Export Database</span>
                     <span className="text-xs text-slate-400">Download all records</span>
                   </div>
-                </a>
+                </button>
+
+                <div className="my-1.5 border-t border-slate-100" />
+
+                <button
+                  onClick={() => setIsPanelOpen(!isPanelOpen)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${isPanelOpen
+                      ? "bg-indigo-50 border-indigo-200"
+                      : "bg-slate-50 border-slate-100 hover:border-slate-200 hover:bg-slate-100/50"
+                    }`}
+                >
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm ${isPanelOpen ? "bg-indigo-100 text-indigo-700" : "bg-white text-[#1B2845]"
+                    }`}>
+                    {isPanelOpen ? <ChevronLeft size={16} className="rotate-180" /> : <Database size={15} />}
+                  </div>
+                  <div>
+                    <span className={`block font-semibold text-sm ${isPanelOpen ? "text-indigo-700" : "text-slate-700"}`}>
+                      {isPanelOpen ? "Hide Duplicates" : "Check Duplicates"}
+                    </span>
+                    <span className={`text-xs ${isPanelOpen ? "text-indigo-500" : "text-slate-400"}`}>
+                      {isPanelOpen ? "Close side panel" : "View similar entries"}
+                    </span>
+                  </div>
+                </button>
               </div>
             </div>
 

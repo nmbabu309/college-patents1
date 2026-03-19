@@ -11,7 +11,14 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
 
-  if (loading) return null; // Or a spinner
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-[#FAFBFD]">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-3 border-slate-200 border-t-[#1B2845] rounded-full animate-spin" />
+        <p className="text-sm text-slate-400 font-medium">Loading...</p>
+      </div>
+    </div>
+  );
 
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;

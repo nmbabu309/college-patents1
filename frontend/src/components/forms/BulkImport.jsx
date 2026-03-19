@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, X, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { isValidEmailDomain, getEmailDomainError } from '../../config/constants';
+import { isValidEmailDomain, getEmailDomainError, DEPARTMENTS } from '../../config/constants';
 import api from '../../api/axios';
 
 const BulkImport = ({ isOpen, onClose, onSuccess }) => {
@@ -150,15 +149,35 @@ const BulkImport = ({ isOpen, onClose, onSuccess }) => {
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
-        const bstr = evt.target.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws, { range: 1 });
-
-        if (data.length === 0) {
+        const buffer = evt.target.result;
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(buffer);
+        
+        const worksheet = workbook.worksheets[0];
+        if (!worksheet || worksheet.rowCount <= 1) {
           throw new Error('Sheet is empty');
         }
+
+        const data = [];
+        const headers = worksheet.getRow(1).values; // Note: ExcelJS array is 1-indexed
+
+        worksheet.eachRow((row, rowNumber) => {
+          if (rowNumber === 1) return; // skip header
+          const rowData = {};
+          row.eachCell((cell, colNumber) => {
+            // If the cell contains a rich text object, extract the plaintext value
+            let cellValue = cell.value;
+            if (cellValue && typeof cellValue === 'object' && cellValue.richText) {
+                cellValue = cellValue.richText.map(rt => rt.text).join('');
+            }
+            
+            const header = headers[colNumber];
+            if (header) {
+              rowData[header] = cellValue;
+            }
+          });
+          data.push(rowData);
+        });
 
         setStats(prev => ({ ...prev, total: data.length }));
 
@@ -242,17 +261,16 @@ const BulkImport = ({ isOpen, onClose, onSuccess }) => {
             }
 
             // Validate department against allowed values (Case Insensitive)
-            const allowedDepartments = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIML', 'CSD', 'CSM', 'FED', 'MBA'];
             if (payload.department) {
               const upperDept = payload.department.trim().toUpperCase();
-              if (!allowedDepartments.includes(upperDept)) {
-                throw new Error(`Invalid department: '${payload.department}'. Must be one of: ${allowedDepartments.join(', ')}`);
+              if (!DEPARTMENTS.includes(upperDept)) {
+                throw new Error(`Invalid department: '${payload.department}'. Must be one of: ${DEPARTMENTS.join(', ')}`);
               }
               // Auto-fix casing
               payload.department = upperDept;
             }
 
-            await api.post('/form/formEntry', payload);
+            await api.post('/form/bulkImport', [payload]);
             successCount++;
 
             // Track success
@@ -299,7 +317,7 @@ const BulkImport = ({ isOpen, onClose, onSuccess }) => {
       }
     };
 
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const handleModalDrop = (e) => {

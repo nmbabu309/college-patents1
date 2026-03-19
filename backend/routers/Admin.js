@@ -3,20 +3,16 @@ import { verifyToken } from "../middleware/verifyToken.js";
 import { requireSuperAdmin, requireAnyAdmin } from "../middleware/authorization.js";
 import { db } from "../db.js";
 import bcrypt from "bcryptjs";
+import { logAction } from "../utils/logger.js";
+import { createBackup } from "../services/backupService.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const router = Router();
 
-// Helper function to log actions
-const logAction = async (userEmail, action, details) => {
-  try {
-    await db.query(
-      "INSERT INTO audit_logs (user_email, action, details) VALUES (?, ?, ?)",
-      [userEmail, action, details]
-    );
-  } catch (err) {
-    console.error("Failed to log action:", err);
-  }
-};
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Get current user info
 router.get("/me", verifyToken, requireAnyAdmin, async (req, res) => {
@@ -37,16 +33,41 @@ router.get("/me", verifyToken, requireAnyAdmin, async (req, res) => {
   }
 });
 
-// Get all admins (super admin only)
+// Get all admins (super admin only) — supports pagination
 router.get("/admins", verifyToken, requireSuperAdmin, async (req, res) => {
   try {
-    const [admins] = await db.query(
-      `SELECT id, email, role, department, created_at, 
-       (SELECT email FROM admins AS creator WHERE creator.id = admins.created_by) AS created_by_email
-       FROM admins 
-       ORDER BY role DESC, created_at ASC`
-    );
-    return res.status(200).json(admins);
+    const page = parseInt(req.query.page) || 0;
+    const limit = parseInt(req.query.limit) || 0;
+
+    if (page > 0 && limit > 0) {
+      // Paginated response
+      const offset = (page - 1) * limit;
+
+      const [[{ total }]] = await db.query("SELECT COUNT(*) as total FROM admins");
+
+      const [admins] = await db.query(
+        `SELECT id, email, role, department, created_at, 
+         (SELECT email FROM admins AS creator WHERE creator.id = admins.created_by) AS created_by_email
+         FROM admins 
+         ORDER BY role DESC, created_at ASC
+         LIMIT ? OFFSET ?`,
+        [limit, offset]
+      );
+
+      return res.status(200).json({
+        data: admins,
+        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) }
+      });
+    } else {
+      // Non-paginated (backward compatible)
+      const [admins] = await db.query(
+        `SELECT id, email, role, department, created_at, 
+         (SELECT email FROM admins AS creator WHERE creator.id = admins.created_by) AS created_by_email
+         FROM admins 
+         ORDER BY role DESC, created_at ASC`
+      );
+      return res.status(200).json(admins);
+    }
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Failed to fetch admins" });
@@ -324,12 +345,81 @@ router.get("/logs", verifyToken, requireAnyAdmin, async (req, res) => {
 // Delete all patents (super admin only)
 router.post("/deleteAll", verifyToken, requireSuperAdmin, async (req, res) => {
   try {
+    // 1. Delete all physical files in the upload directories first
+    const publishDir = path.join(__dirname, '../uploads/proof_of_publish');
+    const grantDir = path.join(__dirname, '../uploads/proof_of_grant');
+
+    console.log(`[DeleteAll] Starting physical file deletion...`);
+    console.log(`[DeleteAll] Publish Dir: ${publishDir}`);
+    console.log(`[DeleteAll] Grant Dir: ${grantDir}`);
+
+    let deletedCount = 0;
+
+    try {
+      if (fs.existsSync(publishDir)) {
+        const files = fs.readdirSync(publishDir);
+        console.log(`[DeleteAll] Found ${files.length} files in publish_dir`);
+        for (const file of files) {
+          const filePath = path.join(publishDir, file);
+          try {
+             fs.unlinkSync(filePath);
+             deletedCount++;
+             console.log(`[DeleteAll] Deleted: ${filePath}`);
+          } catch(e) {
+             console.error(`[DeleteAll] Failed to delete file ${filePath}:`, e);
+          }
+        }
+      } else {
+        console.log(`[DeleteAll] Directory does not exist: ${publishDir}`);
+      }
+
+      if (fs.existsSync(grantDir)) {
+        const files = fs.readdirSync(grantDir);
+        console.log(`[DeleteAll] Found ${files.length} files in grant_dir`);
+        for (const file of files) {
+           const filePath = path.join(grantDir, file);
+           try {
+             fs.unlinkSync(filePath);
+             deletedCount++;
+             console.log(`[DeleteAll] Deleted: ${filePath}`);
+           } catch (e) {
+             console.error(`[DeleteAll] Failed to delete file ${filePath}:`, e);
+           }
+        }
+      } else {
+        console.log(`[DeleteAll] Directory does not exist: ${grantDir}`);
+      }
+      
+      console.log(`[DeleteAll] Successfully deleted ${deletedCount} files.`);
+      
+    } catch (fsErr) {
+      console.error("[DeleteAll] Critical error during file deletion loop:", fsErr);
+    }
+
+    // 2. Wipe the database table
     await db.query("DELETE FROM patents");
-    await logAction(req.user.userEmail, "DELETE_ALL", "Deleted all patents");
-    return res.status(200).json({ message: "All patents deleted" });
+    await logAction(req.user.userEmail, "DELETE_ALL", "Deleted all patents and associated files");
+    
+    return res.status(200).json({ message: "All patents and files deleted" });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Failed to delete all" });
+  }
+});
+
+// Trigger manual backup (super admin only)
+router.post("/backup", verifyToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const result = await createBackup();
+    if (result.success) {
+      await logAction(req.user.userEmail, "BACKUP", `Created manual backup: ${result.file}`);
+      return res.status(200).json(result);
+    } else {
+      return res.status(500).json(result);
+    }
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Failed to create backup" });
   }
 });
 
@@ -412,5 +502,41 @@ router.get("/stats", verifyToken, requireAnyAdmin, async (req, res) => {
     return res.status(500).json({ message: "Failed to fetch stats" });
   }
 });
+
+// ── Audit Log Cleanup (Super Admin) ──
+router.post("/logs/cleanup", verifyToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const retentionMonths = parseInt(req.body.retentionMonths) || 6;
+    const [result] = await db.query(
+      "DELETE FROM audit_logs WHERE timestamp < DATE_SUB(NOW(), INTERVAL ? MONTH)",
+      [retentionMonths]
+    );
+
+    await logAction(req.user.userEmail, "CLEANUP", `Cleaned up ${result.affectedRows} audit logs older than ${retentionMonths} months`);
+
+    return res.status(200).json({
+      message: `Deleted ${result.affectedRows} logs older than ${retentionMonths} months`,
+      deletedCount: result.affectedRows
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Failed to clean up logs" });
+  }
+});
+
+// Exported cleanup function for cron usage
+export const cleanupOldLogs = async (retentionMonths = 6) => {
+  try {
+    const [result] = await db.query(
+      "DELETE FROM audit_logs WHERE timestamp < DATE_SUB(NOW(), INTERVAL ? MONTH)",
+      [retentionMonths]
+    );
+    if (result.affectedRows > 0) {
+      console.log(`🧹 Auto-cleanup: Deleted ${result.affectedRows} audit logs older than ${retentionMonths} months`);
+    }
+  } catch (error) {
+    console.error("Audit log cleanup failed:", error.message);
+  }
+};
 
 export default router;

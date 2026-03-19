@@ -44,6 +44,10 @@ export const isValidEmailDomain = (email) => {
     return allowedDomains.some(allowedDomain => emailDomain === allowedDomain);
 };
 
+export const DEPARTMENTS = [
+    'CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIML', 'CSD', 'CSM', 'FED', 'MBA'
+];
+
 /**
  * Get error message for invalid domain
  * @returns {string} - Error message

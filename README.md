@@ -1,84 +1,113 @@
-# College Publications & Patents Management System
+# College Publications & Patents
 
-## 🚀 Overview
-A comprehensive faculty research management platform designed to track, manage, and publicly showcase academic publications and patents.
+A modern full-stack web application designed for academic institutions to manage, store, and publicly display faculty patent publications. Built with **Express 5 + MySQL** on the backend and **React 19 + Vite + Tailwind 4** on the frontend.
 
-**Key Features:**
-*   **Public Access**: Browse and search publications without login.
-*   **Admin Portal**: Secure management for adding/editing data.
-*   **PDF Previews**: View documents directly in the browser (no auto-download).
-*   **Cross-Device Support**: Works seamlessly on local networks (mobile/tablet testing).
-*   **Excel Integration**: Bulk import/export capabilities.
-*   **Modern UI**: Built with React, Tailwind CSS, and Framer Motion.
+![Project Banner](./frontend/public/favicon.svg)
 
-## 🛠 Project Structure
-- `frontend`: React + Vite application (Dynamic Base URL)
-- `backend`: Express + Node.js application (Filesystem Uploads)
+## ✨ Features
 
-## 📋 Prerequisites
-- Node.js (v18 or higher recommended)
-- npm or yarn
-- MySQL Database
+### Public Portal
+- **Browse & Search:** Fully paginated, sortable, and filterable table of all faculty patents.
+- **Export Filters:** Smart Excel export that exactly matches the active table filters.
+- **Responsive Design:** Seamless experience across desktop and mobile devices.
 
-## ⚙️ Setup & Installation
+### Admin Dashboard
+- **Role-Based Access Control:** Super Admins can manage sub-admins; Sub-admins can only manage patents within their assigned department.
+- **Patent Submission:** Secure multi-file PDF uploads with live duplicate detection.
+- **Bulk Import:** Client-side parsing of Excel spreadsheets for one-click batch uploading.
+- **Audit Trails:** Comprehensive logging of all system actions (creates, updates, deletes).
+- **System Health:** Integrated `/health` endpoint and automatic database backup system.
 
-### Backend
-1. Navigate to the backend directory:
+---
+
+## 🚀 Quick Start
+
+See [HOW_TO_RUN.md](./HOW_TO_RUN.md) for detailed local setup and production deployment instructions.
+
+### Prerequisites
+- Node.js v18+
+- MySQL Server 8.0+
+
+### 💻 Local Development Setup
+
+The application automatically provisions its own database schema, tables, and seeds the initial Super Admin account based on the `.env` configuration. The backend has a built-in auto-retry loop and will patiently wait if MySQL takes a moment to boot.
+
+1. **Start the Backend:**
    ```bash
    cd backend
-   ```
-2. Install dependencies:
-   ```bash
    npm install
-   ```
-3. Set up environment variables (`.env`):
-   ```env
-   DB_HOST=localhost
-   DB_USER=root
-   DB_PASSWORD=your_password
-   DB_NAME=patent_portal
-   JWT_SECRET=your_secret_key
-   PORT=3000
-   FRONTEND_URL=http://localhost:5173 
-   ```
-4. Start the server:
-   ```bash
+   # copy .env.example to .env and configure DB credentials
    npm run dev
    ```
 
-### Frontend
-1. Navigate to the frontend directory:
+2. **Start the Frontend:**
    ```bash
    cd frontend
-   ```
-2. Install dependencies:
-   ```bash
    npm install
-   ```
-3. Development Mode (Auto-detects backend URL):
-   ```bash
    npm run dev
    ```
-   *Note: You can access the app from other devices on the same network (e.g., `http://192.168.1.5:5173`).*
 
-## 📦 Production Deployment
+### 🌍 Production / Ngrok Single-Server Setup
 
-### Backend
-1. Use a process manager like PM2:
+For simple Ngrok sharing or production deployment, the Express backend natively hosts the optimized React frontend.
+
+1. **Build the Frontend:**
    ```bash
-   pm2 start index.js --name patent-api
-   ```
-2. Ensure `drectory/uploads` exists and is writable.
-
-### Frontend
-1. Build the application:
-   ```bash
+   cd frontend
    npm run build
    ```
-2. Serve the `dist` folder using Nginx, Apache, or a static file server.
+2. **Start the Unified Server:**
+   ```bash
+   cd backend
+   npm start
+   ```
+3. **Tunnel to the Internet:**
+   ```bash
+   ngrok http 3000
+   ```
+*(The backend CORS and frontend Axios are fully pre-configured to dynamically support `ngrok-free.app` domains without hardcoding).*
 
-## 🔒 Security
-- **JWT Authentication**: Stateless admin sessions.
-- **CORS**: Configured to allow strictly specific origins (Localhost, Local Network, Production Domain).
-- **Helmet**: Enforces security headers.
-- **File Security**: PDFs served with `Content-Disposition: inline` to prevent script execution via download.
+---
+
+## 📚 API Reference
+
+The backend provides a comprehensive REST architecture secured via JWT tokens.
+
+| Group | Endpoint | Description | Auth Required |
+|---|---|---|---|
+| **Public** | `GET /form/formGet` | Retrieve paginated list of patents | None |
+| **Public** | `GET /form/downloadExcel` | Export patent data (supports data filtering) | None |
+| **System** | `GET /health` | Check MySQL database connectivity | None |
+| **Auth** | `POST /login` | Authenticate an admin user | None |
+| **Patents** | `POST /form/formEntry` | Submit a new patent (with PDFs) | Any Admin |
+| **Patents** | `PUT /form/formEntryUpdate` | Update existing patent | Any Admin |
+| **Patents** | `DELETE /form/deleteEntry/:id`| Remove patent and associated PDFs | Any Admin |
+| **Admins** | `GET /admin/admins` | List paginated administrators | Super Admin |
+| **Logs** | `POST /admin/logs/cleanup` | Delete audit logs older than N months | Super Admin |
+
+*For the complete list of 21 unique endpoints and parameter documentation, view the respective router files in `backend/routers/`.*
+
+---
+
+## 🛠️ Technology Stack
+
+**Frontend:**
+- React 19 Ecosystem (react-router-dom)
+- Vite 7 tooling
+- Tailwind CSS 4 styling
+- Framer Motion animations
+- ExcelJS (Client-side spreadsheet generation)
+
+**Backend:**
+- Node.js Express 5 server
+- MySQL2 (Promise-based client)
+- JWT Authentication & Bcrypt Hashing
+- Multer (Multipart PDF uploads)
+- Joi (Robust payload validation schema)
+
+## 🔒 Security Posture
+
+- **Input Validation:** Joi request body validation preventing malformed data.
+- **Injection Protection:** Parameterized queries and backtick column escaping for dynamic sorts.
+- **Denial of Service:** `express.json` request body capped at 1MB.
+- **Fast Startup Failures:** Pre-flight checks ensure all critical environment variables exist at boot.

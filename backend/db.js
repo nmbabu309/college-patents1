@@ -24,8 +24,24 @@ const createDatabaseIfNotExists = async () => {
     }
 };
 
-// Create database first, then create pool
-await createDatabaseIfNotExists();
+// Create database with retry logic for production resilience
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const connectWithRetry = async (retries = 10, delay = 3000) => {
+    for (let i = 0; i < retries; i++) {
+        try {
+            await createDatabaseIfNotExists();
+            return; // Success
+        } catch (error) {
+            console.error(`⚠️ Database not ready... retrying in ${delay/1000}s (${i+1}/${retries})`);
+            await sleep(delay);
+        }
+    }
+    console.error('❌ Failed to connect to the database after multiple retries. Exiting.');
+    process.exit(1);
+};
+
+await connectWithRetry();
 
 export const db = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
@@ -95,7 +111,11 @@ const initDb = async () => {
                     grantDocumentLink TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    INDEX idx_department (department)
+                    INDEX idx_department (department),
+                    INDEX idx_patentId (patentId(255)),
+                    INDEX idx_email (email(255)),
+                    FULLTEXT INDEX idx_facultyName (facultyName),
+                    FULLTEXT INDEX idx_patentTitle (patentTitle)
                 )
             `);
             console.log('✅ Patents table created with strict field order');
@@ -103,36 +123,73 @@ const initDb = async () => {
             // If table exists, ensure all columns exist (Migrations)
             console.log('ℹ️ Patents table exists, checking for missing columns...');
 
-            const migrations = [
-                // Add columns if they don't exist, attempting to place them in logical order relative to others if possible
-                // Note: accurate reordering of existing columns requires complex ALTER TABLE CHANGE/MODIFY calls which are risky on live data without backups.
-                // We will ensure columns EXIST.
-                "ALTER TABLE patents ADD COLUMN IF NOT EXISTS facultyName TEXT",
-                "ALTER TABLE patents ADD COLUMN IF NOT EXISTS email TEXT",
-                "ALTER TABLE patents ADD COLUMN IF NOT EXISTS department VARCHAR(255)",
-                "ALTER TABLE patents ADD COLUMN IF NOT EXISTS designation TEXT",
-                "ALTER TABLE patents ADD COLUMN IF NOT EXISTS caste VARCHAR(10)",
-                "ALTER TABLE patents ADD COLUMN IF NOT EXISTS patentId TEXT",
-                "ALTER TABLE patents ADD COLUMN IF NOT EXISTS patentTitle TEXT",
-                "ALTER TABLE patents ADD COLUMN IF NOT EXISTS authors TEXT",
-                "ALTER TABLE patents ADD COLUMN IF NOT EXISTS coApplicants TEXT",
-                "ALTER TABLE patents ADD COLUMN IF NOT EXISTS patentType ENUM('Utility', 'Design') DEFAULT 'Utility'",
-                "ALTER TABLE patents ADD COLUMN IF NOT EXISTS approvalType TEXT",
-                "ALTER TABLE patents ADD COLUMN IF NOT EXISTS filingDate DATE",
-                "ALTER TABLE patents ADD COLUMN IF NOT EXISTS publishingDate DATE",
-                "ALTER TABLE patents ADD COLUMN IF NOT EXISTS grantingDate DATE",
-                "ALTER TABLE patents ADD COLUMN IF NOT EXISTS documentLink TEXT",
-                "ALTER TABLE patents ADD COLUMN IF NOT EXISTS grantDocumentLink TEXT"
+            // Get existing columns
+            const [columns] = await connection.query(`
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'patents'
+            `);
+            const existingColumns = columns.map(col => col.COLUMN_NAME);
+
+            // Define required columns with their definitions
+            const requiredColumns = [
+                { name: 'facultyName', definition: 'TEXT' },
+                { name: 'email', definition: 'TEXT' },
+                { name: 'department', definition: 'VARCHAR(255)' },
+                { name: 'designation', definition: 'TEXT' },
+                { name: 'caste', definition: 'VARCHAR(10)' },
+                { name: 'patentId', definition: 'TEXT' },
+                { name: 'patentTitle', definition: 'TEXT' },
+                { name: 'authors', definition: 'TEXT' },
+                { name: 'coApplicants', definition: 'TEXT' },
+                { name: 'patentType', definition: "ENUM('Utility', 'Design') DEFAULT 'Utility'" },
+                { name: 'approvalType', definition: 'TEXT' },
+                { name: 'filingDate', definition: 'DATE' },
+                { name: 'publishingDate', definition: 'DATE' },
+                { name: 'grantingDate', definition: 'DATE' },
+                { name: 'documentLink', definition: 'TEXT' },
+                { name: 'grantDocumentLink', definition: 'TEXT' }
             ];
 
-            for (const sql of migrations) {
-                try {
-                    await connection.query(sql);
-                } catch (e) {
-                    console.warn(`Migration notice: ${e.message}`);
+            // Add missing columns
+            for (const col of requiredColumns) {
+                if (!existingColumns.includes(col.name)) {
+                    try {
+                        await connection.query(`ALTER TABLE patents ADD COLUMN ${col.name} ${col.definition}`);
+                        console.log(`✅ Added column: ${col.name}`);
+                    } catch (e) {
+                        console.warn(`Failed to add column ${col.name}: ${e.message}`);
+                    }
                 }
             }
             console.log('✅ Patent table schema verified');
+
+            // Apply missing indexes to existing patents table
+            console.log('ℹ️ Checking for missing text indexes on patents table...');
+            
+            // Note: Since indexing long TEXT columns can require prefix lengths or FULLTEXT, 
+            // we configure email and patentId precisely, and use FULLTEXT for searching names/titles
+            
+            const indexesToAdd = [
+                { name: 'idx_patentId', sql: 'CREATE INDEX idx_patentId ON patents (patentId(255))' },
+                { name: 'idx_email', sql: 'CREATE INDEX idx_email ON patents (email(255))' },
+                { name: 'idx_facultyName', sql: 'CREATE FULLTEXT INDEX idx_facultyName ON patents (facultyName)' },
+                { name: 'idx_patentTitle', sql: 'CREATE FULLTEXT INDEX idx_patentTitle ON patents (patentTitle)' }
+            ];
+
+            const [existingIndexes] = await connection.query('SHOW INDEXES FROM patents');
+            const currentIndexNames = existingIndexes.map(idx => idx.Key_name);
+
+            for (const define of indexesToAdd) {
+                if (!currentIndexNames.includes(define.name)) {
+                    try {
+                        await connection.query(define.sql);
+                        console.log(`✅ Applied index: ${define.name}`);
+                    } catch (e) {
+                         console.warn(`Failed to apply index ${define.name}: ${e.message}`);
+                    }
+                }
+            }
         }
 
         // Create audit_logs table

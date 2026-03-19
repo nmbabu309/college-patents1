@@ -84,12 +84,39 @@
   }
 
   *:focus-visible {
-    @apply outline-none ring-2 ring-[#1B2845]/30 ring-offset-2;
+    @apply outline-none ring-2 ring-[#C8A96E] ring-offset-2 transition-shadow;
   }
 
   ::selection {
     background-color: #C8A96E33;
     color: #1B2845;
+  }
+
+  /* Universal Interactive Elements */
+  button, a, [role="button"], input[type="submit"], input[type="file"]::file-selector-button {
+    @apply cursor-pointer transition-all duration-200;
+  }
+
+  button:active, a:active, [role="button"]:active {
+    @apply scale-[0.98];
+  }
+
+  button:disabled, a[aria-disabled="true"], input:disabled, textarea:disabled, select:disabled {
+    @apply cursor-not-allowed opacity-60 active:scale-100;
+  }
+
+  /* Global Scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full hover:bg-gray-400 border-2 border-transparent bg-clip-padding transition-colors;
   }
 }
 
@@ -141,14 +168,14 @@
     @apply bg-error-light text-red-700;
   }
 
-  /* Scrollbar */
+  /* Thin scrollbar for specific tiny areas */
   .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 4px;
+    height: 4px;
   }
 
   .scrollbar-thin::-webkit-scrollbar-track {
-    @apply bg-gray-50 rounded-full;
+    @apply bg-transparent rounded-full;
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {

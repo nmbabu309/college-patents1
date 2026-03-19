@@ -3,9 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Search } from 'lucide-react';
 
 const SidePanel = ({ isOpen, onClose, title, children, onClear }) => {
-    // ... (state remains same, don't repeat here if using replace_file_content intelligently, but here I need to target the destructuring line 5 and the header block lines 92-102)
-    // Actually, I can't edit two distant places with one replace_file_content call unless I use multi_replace.
-    // I will use multi_replace.
     const [width, setWidth] = useState(600);
     const [height, setHeight] = useState(window.innerHeight - 200);
 

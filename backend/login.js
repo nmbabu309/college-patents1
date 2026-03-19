@@ -2,20 +2,10 @@ import { Router } from "express";
 import { db } from "./db.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { logAction } from "./utils/logger.js";
 
 const router = Router();
 
-// Helper function to log actions
-const logAction = async (userEmail, action, details) => {
-  try {
-    await db.query(
-      "INSERT INTO audit_logs (user_email, action, details) VALUES (?, ?, ?)",
-      [userEmail, action, details]
-    );
-  } catch (err) {
-    console.error("Error logging action:", err);
-  }
-};
 
 /**
  * POST /login (mounted as /login in index.js)

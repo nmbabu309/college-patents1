@@ -55,7 +55,7 @@ const Header = () => {
                     <span>Submit Patent</span>
                   </Link>
 
-                  <button onClick={handleLogout} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors ml-1" title="Logout">
+                  <button onClick={handleLogout} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors ml-1" title="Logout" aria-label="Logout">
                     <LogOut size={17} />
                   </button>
                 </>
@@ -74,6 +74,7 @@ const Header = () => {
             <button
               className="md:hidden p-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
             >
               {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
             </button>

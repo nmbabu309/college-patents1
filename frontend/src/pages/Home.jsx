@@ -1,16 +1,19 @@
 import { useState, useRef } from 'react';
-import { Download, Search, ChevronRight, Award } from 'lucide-react';
+import { Download, Search, ChevronRight, Award, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Header from '../components/common/Header';
 import Footer from '../components/common/Footer';
 import PublicationsTable from '../components/data/PublicationsTable';
 import LoginModal from '../components/auth/LoginModal';
 import { useAuth } from '../context/AuthContext';
+import { getBaseUrl } from '../api/axios';
 import { useNavigate } from 'react-router-dom';
+import api from '../api/axios';
 
 const Home = () => {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const tableRef = useRef();
@@ -42,6 +45,53 @@ const Home = () => {
       toast.error('Failed to refresh data');
     } finally {
       setTimeout(() => setIsRefreshing(false), 600);
+    }
+  };
+
+  const handleExport = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+
+    try {
+      // Get current filters from the table
+      const currentFilters = tableRef.current?.getFilters() || {};
+      const hasActiveFilters = Object.values(currentFilters).some(v => v && String(v).trim().length > 0);
+
+      // Build query params
+      const params = {};
+      if (hasActiveFilters) {
+        params.filters = JSON.stringify(currentFilters);
+      }
+
+      const response = await api.get("/form/downloadExcel", {
+        params,
+        responseType: "arraybuffer",
+      });
+
+      const blob = new Blob([response.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const filename = hasActiveFilters ? "patents-filtered.xlsx" : "patents.xlsx";
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      if (hasActiveFilters) {
+        toast.success("Filtered data exported successfully");
+      } else {
+        toast.success("All data exported successfully");
+      }
+    } catch (err) {
+      console.error("Export failed", err);
+      toast.error("Failed to export data");
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -126,18 +176,27 @@ const Home = () => {
                     <span className={isRefreshing ? 'animate-spin' : ''}>↻</span>
                     Refresh
                   </button>
-                  <a
-                    href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/form/downloadExcel`}
-                    target="_blank"
-                    download
-                    rel="noreferrer"
-                    className="px-4 py-2 bg-[#1B2845] hover:bg-[#243656] text-white rounded-lg text-sm font-medium transition-all active:scale-95 flex items-center gap-1.5"
+                  <button
+                    onClick={handleExport}
+                    disabled={isExporting}
+                    className="px-4 py-2 bg-[#1B2845] hover:bg-[#243656] text-white rounded-lg text-sm font-medium transition-all active:scale-95 flex items-center gap-1.5 disabled:opacity-60"
+                    title="Exports current view. Apply column filters to export specific data."
+                    aria-label="Export data to Excel"
                   >
-                    <Download size={15} />
-                    Export
-                  </a>
+                    {isExporting ? (
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <Download size={15} />
+                    )}
+                    {isExporting ? 'Exporting...' : 'Export'}
+                  </button>
                 </div>
               </div>
+
+              <p className="px-5 md:px-6 pt-3 pb-1 text-xs text-slate-400 flex items-center gap-1">
+                <Filter size={12} />
+                Use column filters below to narrow results, then click Export to download filtered data as Excel.
+              </p>
 
               {/* Table */}
               <div className="p-0">

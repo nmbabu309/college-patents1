@@ -68,9 +68,6 @@ export const AuthProvider = ({ children }) => {
 
   // Helper functions for role checking
 
-  // Actually, I can just use regular function definitions but wrap them in useCallback
-  // Wait, I can't conditionally import useCallback here. It is already imported in line 1.
-
   const isSuperAdmin = useCallback(() => {
     return user?.role === 'super_admin';
   }, [user]);
