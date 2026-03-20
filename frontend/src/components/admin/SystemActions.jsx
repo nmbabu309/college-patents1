@@ -1,5 +1,6 @@
 import { AlertCircle, FileText, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import OrphanedFilesPanel from './OrphanedFilesPanel';
 
 const SystemActions = ({ isSuperAdmin, handleManualBackup, isBackingUp, api, toast, fetchLogs, fetchStats }) => {
     if (!isSuperAdmin) return null;
@@ -18,6 +19,7 @@ const SystemActions = ({ isSuperAdmin, handleManualBackup, isBackingUp, api, toa
                 </h2>
             </div>
             <div className="p-5 space-y-5">
+                {/* Manual Backup */}
                 <div>
                     <p className="text-xs text-slate-500 mb-2">
                         Manually trigger a full system backup (Database & Uploads).
@@ -31,6 +33,11 @@ const SystemActions = ({ isSuperAdmin, handleManualBackup, isBackingUp, api, toa
                         {isBackingUp ? "Backing up..." : "Create Backup"}
                     </button>
                 </div>
+
+                {/* Orphaned File Cleanup */}
+                <OrphanedFilesPanel />
+
+                {/* Reset Database */}
                 <div className="pt-4 border-t border-red-100">
                     <p className="text-xs text-slate-500 mb-3">
                         Permanently wipe all patent entries. Ensure a backup has been exported first.

@@ -232,6 +232,84 @@ router.put("/my-password", verifyToken, requireAnyAdmin, async (req, res) => {
   }
 });
 
+// DELETE /admin/orphaned-files — deletes a specific list of orphaned files
+// SAFETY: Re-checks each file against DB immediately before deleting
+// NOTE: This MUST be defined before the generic DELETE /:id route below,
+//       otherwise Express matches "orphaned-files" as an :id parameter.
+router.delete("/orphaned-files", verifyToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { files } = req.body; // [{ filename, folder }]
+
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      return res.status(400).json({ message: "No files specified for deletion" });
+    }
+
+    // Re-query DB references at delete time (double safety — state may have changed since scan)
+    const [rows] = await db.query(
+      "SELECT documentLink, grantDocumentLink FROM patents WHERE documentLink IS NOT NULL OR grantDocumentLink IS NOT NULL"
+    );
+    const dbReferencedFilenames = new Set();
+    for (const row of rows) {
+      if (row.documentLink) dbReferencedFilenames.add(path.basename(row.documentLink));
+      if (row.grantDocumentLink) dbReferencedFilenames.add(path.basename(row.grantDocumentLink));
+    }
+
+    const uploadsBase = path.join(__dirname, '../uploads');
+    const allowedFolders = ['proof_of_publish', 'proof_of_grant'];
+    const deleted = [];
+    const skipped = [];
+
+    for (const { filename, folder } of files) {
+      // Strict safety: reject any path traversal attempts or unknown folders
+      if (!allowedFolders.includes(folder)) {
+        console.warn(`[OrphanDelete] Rejected unknown folder: ${folder}`);
+        skipped.push({ filename, reason: 'Unknown folder — rejected' });
+        continue;
+      }
+      if (filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+        console.warn(`[OrphanDelete] Rejected unsafe filename: ${filename}`);
+        skipped.push({ filename, reason: 'Unsafe filename — rejected' });
+        continue;
+      }
+
+      // Re-check: if file now exists in DB, do NOT delete it
+      if (dbReferencedFilenames.has(filename)) {
+        console.warn(`[OrphanDelete] Skipping '${filename}' — now referenced in DB`);
+        skipped.push({ filename, reason: 'File is now referenced in DB — skipped for safety' });
+        continue;
+      }
+
+      const filePath = path.join(uploadsBase, folder, filename);
+
+      // Verify file actually exists on disk before trying to delete
+      if (!fs.existsSync(filePath)) {
+        skipped.push({ filename, reason: 'File not found on disk' });
+        continue;
+      }
+
+      // All checks passed — safe to delete
+      fs.unlinkSync(filePath);
+      deleted.push(filename);
+      console.log(`[OrphanDelete] Deleted orphaned file: ${folder}/${filename}`);
+    }
+
+    await logAction(
+      req.user.userEmail,
+      "ORPHAN_CLEANUP",
+      `Deleted ${deleted.length} orphaned file(s): ${deleted.join(', ')}${skipped.length > 0 ? ` | Skipped ${skipped.length}: ${skipped.map(s => s.filename).join(', ')}` : ''}`
+    );
+
+    return res.status(200).json({
+      message: `Deleted ${deleted.length} file(s)${skipped.length > 0 ? `, skipped ${skipped.length}` : ''}`,
+      deleted,
+      skipped
+    });
+  } catch (error) {
+    console.error('[OrphanDelete] Error:', error);
+    return res.status(500).json({ message: "Failed to delete orphaned files" });
+  }
+});
+
 // Delete admin (super admin only)
 router.delete("/:id", verifyToken, requireSuperAdmin, async (req, res) => {
   try {
@@ -523,6 +601,58 @@ router.post("/logs/cleanup", verifyToken, requireSuperAdmin, async (req, res) =>
     return res.status(500).json({ message: "Failed to clean up logs" });
   }
 });
+
+// ── Orphaned File Cleanup (Super Admin) ──
+// GET /admin/orphaned-files — lists files on disk NOT referenced in the DB
+router.get("/orphaned-files", verifyToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const uploadsBase = path.join(__dirname, '../uploads');
+    const folders = ['proof_of_publish', 'proof_of_grant'];
+
+    // 1. Collect all files currently on disk
+    const diskFiles = [];
+    for (const folder of folders) {
+      const folderPath = path.join(uploadsBase, folder);
+      if (!fs.existsSync(folderPath)) continue;
+      const entries = fs.readdirSync(folderPath);
+      for (const filename of entries) {
+        const filePath = path.join(folderPath, filename);
+        const stat = fs.statSync(filePath);
+        if (stat.isFile()) {
+          diskFiles.push({ filename, folder, size: stat.size, lastModified: stat.mtime });
+        }
+      }
+    }
+
+    // 2. Query ALL document references currently stored in DB
+    const [rows] = await db.query(
+      "SELECT documentLink, grantDocumentLink FROM patents WHERE documentLink IS NOT NULL OR grantDocumentLink IS NOT NULL"
+    );
+
+    // Build a Set of just the basenames that the DB knows about
+    const dbReferencedFilenames = new Set();
+    for (const row of rows) {
+      if (row.documentLink) {
+        dbReferencedFilenames.add(path.basename(row.documentLink));
+      }
+      if (row.grantDocumentLink) {
+        dbReferencedFilenames.add(path.basename(row.grantDocumentLink));
+      }
+    }
+
+    // 3. Find orphans: on disk but NOT in DB references
+    const orphaned = diskFiles.filter(f => !dbReferencedFilenames.has(f.filename));
+
+    console.log(`[OrphanScan] Disk: ${diskFiles.length} files | DB refs: ${dbReferencedFilenames.size} | Orphaned: ${orphaned.length}`);
+
+    return res.status(200).json({ orphaned, total: diskFiles.length, orphanedCount: orphaned.length });
+  } catch (error) {
+    console.error('[OrphanScan] Error:', error);
+    return res.status(500).json({ message: "Failed to scan for orphaned files" });
+  }
+});
+
+// (Moved above DELETE /:id to prevent route conflict)
 
 // Exported cleanup function for cron usage
 export const cleanupOldLogs = async (retentionMonths = 6) => {

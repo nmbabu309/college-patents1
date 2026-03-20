@@ -302,7 +302,7 @@ const AdminPage = () => {
     ];
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC]">
+        <div className="min-h-screen bg-[#F8FAFC] transition-colors duration-300">
             <Header />
             <div className="h-32"></div>
 

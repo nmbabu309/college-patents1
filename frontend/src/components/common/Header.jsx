@@ -20,7 +20,7 @@ const Header = () => {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-b border-slate-200 shadow-sm z-50">
+      <header className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-b border-slate-200 shadow-sm z-50 transition-colors duration-300">
         <div className="w-full py-3">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
 
@@ -40,7 +40,7 @@ const Header = () => {
             </Link>
 
             {/* Desktop Nav */}
-            <nav className="hidden md:flex items-center gap-2">
+            <nav className="hidden md:flex items-center gap-3">
               {isAuthenticated ? (
                 <>
                   {isAnyAdmin() && (
@@ -71,13 +71,15 @@ const Header = () => {
             </nav>
 
             {/* Mobile Menu Button */}
-            <button
-              className="md:hidden p-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
-            >
-              {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
-            </button>
+            <div className="md:hidden flex items-center gap-2">
+              <button
+                className="p-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+              >
+                {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -135,3 +137,4 @@ const Header = () => {
 };
 
 export default Header;
+

@@ -301,7 +301,7 @@ const BulkImport = ({ isOpen, onClose, onSuccess }) => {
         setResultData(results);
 
         if (newErrors.length > 0) {
-          setErrors(newErrors.slice(0, 5));
+          setErrors(newErrors); // Show ALL errors, no cap
         }
 
         if (successCount > 0 && onSuccess) {
@@ -443,9 +443,25 @@ const BulkImport = ({ isOpen, onClose, onSuccess }) => {
 
                   {errors.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-slate-200">
-                      <p className="text-xs font-semibold text-red-500 mb-1">Errors (showing first 5):</p>
-                      <ul className="text-xs text-red-400 space-y-1 max-h-24 overflow-y-auto">
-                        {errors.map((e, i) => <li key={i}>{e}</li>)}
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-red-500">
+                          {errors.length} row{errors.length > 1 ? 's' : ''} failed:
+                        </p>
+                        <span className="text-[10px] text-slate-400">{errors.length} error{errors.length > 1 ? 's' : ''}</span>
+                      </div>
+                      <ul className="text-xs text-red-500 space-y-1 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                        {errors.map((e, i) => {
+                          // Format: "Row 3: reason" → split cleanly
+                          const colonIdx = e.indexOf(':');
+                          const rowPart = colonIdx > -1 ? e.slice(0, colonIdx) : `Row ${i + 1}`;
+                          const reason = colonIdx > -1 ? e.slice(colonIdx + 1).trim() : e;
+                          return (
+                            <li key={i} className="flex items-start gap-1.5 bg-red-50 border border-red-100 rounded-lg px-2 py-1.5">
+                              <span className="shrink-0 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">{rowPart}</span>
+                              <span className="text-red-600">{reason}</span>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
                   )}

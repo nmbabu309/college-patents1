@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Download, Upload as UploadIcon, FileSpreadsheet, ChevronLeft, Database, Info } from "lucide-react";
+import { Download, Upload as UploadIcon, FileSpreadsheet, ChevronLeft, Database, Info, FileText } from "lucide-react";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import toast from 'react-hot-toast';
 import Header from "../components/common/Header";
 import Footer from "../components/common/Footer";
@@ -117,6 +119,80 @@ const Upload = () => {
 
   const [isExporting, setIsExporting] = useState(false);
 
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
+  const handleExportPdf = async () => {
+    if (isExportingPdf) return;
+    setIsExportingPdf(true);
+
+    try {
+      const currentFilters = tableRef.current?.getFilters() || {};
+      const hasActiveFilters = Object.values(currentFilters).some(v => v && String(v).trim().length > 0);
+      const params = { limit: 10000, page: 1 };
+      if (hasActiveFilters) params.filters = JSON.stringify(currentFilters);
+
+      const response = await api.get("/form/formGet", { params });
+
+      const rawData = response.data?.data || response.data || [];
+      const patentsData = Array.isArray(rawData) ? rawData : (rawData.data || []);
+
+      if (patentsData.length === 0) {
+        toast.error("No data available to export");
+        return;
+      }
+
+      const doc = new jsPDF('landscape');
+      
+      const subtitle = hasActiveFilters ? "Filtered Patents Report" : "All Patents Report";
+      doc.setFontSize(14);
+      doc.text("NRI Institute of Technology - Publications & Patents", 14, 15);
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`${subtitle} • ${patentsData.length} records • Generated: ${new Date().toLocaleDateString('en-IN')}`, 14, 22);
+
+      const tableColumns = [
+        "Faculty Name", "Department", "Designation", "Patent ID", "Patent Title", "Type", "Status", "Filing Date"
+      ];
+      
+      const fmtDate = (val) => {
+        if (!val) return '-';
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      };
+
+      const tableRows = patentsData.map(p => [
+        p.facultyName || '-',
+        p.department || '-',
+        p.designation || '-',
+        p.patentId || '-',
+        p.patentTitle || '-',
+        p.patentType || '-',
+        p.approvalType || 'Pending',
+        fmtDate(p.filingDate)
+      ]);
+
+      autoTable(doc, { 
+        startY: 30,
+        head: [tableColumns], 
+        body: tableRows,
+        theme: 'grid',
+        headStyles: { fillColor: [27, 40, 69] },
+        styles: { fontSize: 7, cellPadding: 3 },
+        columnStyles: { 4: { cellWidth: 70 } }
+      });
+
+      const filename = hasActiveFilters ? "patents-filtered.pdf" : "patents.pdf";
+      doc.save(filename);
+      toast.success(hasActiveFilters ? "Filtered data exported as PDF" : "All data exported as PDF");
+
+    } catch (err) {
+      console.error("PDF export failed", err);
+      toast.error("Failed to generate PDF");
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   const handleExportData = async () => {
     if (isExporting) return;
     setIsExporting(true);
@@ -162,6 +238,7 @@ const Upload = () => {
       setIsExporting(false);
     }
   };
+
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAFBFD]">
