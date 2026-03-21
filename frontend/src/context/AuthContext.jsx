@@ -1,4 +1,5 @@
 import { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import api from '../api/axios';
 
 const AuthContext = createContext();
 
@@ -12,58 +13,38 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const initializeAuth = async () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const base64Url = token.split('.')[1];
-          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-          const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function (c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-          }).join(''));
-
-          const decoded = JSON.parse(jsonPayload);
-
-          // Check if token is expired
-          if (decoded.exp && decoded.exp * 1000 < Date.now()) {
-            console.warn('Token expired, logging out');
-            localStorage.removeItem('token');
-          } else {
-            // JWT now contains: { userEmail, role, department, adminId }
-            setUser(decoded);
-            setIsAuthenticated(true);
-          }
-        } catch (e) {
-          console.error("Invalid token", e);
-          localStorage.removeItem('token');
+      try {
+        const response = await api.get('/login/status');
+        if (response.data?.user) {
+          setUser(response.data.user);
+          setIsAuthenticated(true);
         }
+      } catch (e) {
+        setUser(null);
+        setIsAuthenticated(false);
+        // We only warn in dev mode to reduce noise for guest users
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     initializeAuth();
   }, []);
 
-  const login = (token) => {
-    localStorage.setItem('token', token);
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function (c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
-
-      const decoded = JSON.parse(jsonPayload);
-      setUser(decoded);
-      setIsAuthenticated(true);
-    } catch (e) {
-      console.error("Error decoding token during login", e);
-    }
+  const login = (userData) => {
+    setUser(userData);
+    setIsAuthenticated(true);
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setIsAuthenticated(false);
-    setUser(null);
+  const logout = async () => {
+    try {
+      await api.post('/login/logout');
+    } catch (e) {
+      console.error('Logout error completely removing remote cookie', e);
+    } finally {
+      setIsAuthenticated(false);
+      setUser(null);
+    }
   };
 
   // Helper functions for role checking

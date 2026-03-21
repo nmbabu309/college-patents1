@@ -7,6 +7,7 @@ import cors from "cors"
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import compression from "compression";
+import cookieParser from "cookie-parser";
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -74,6 +75,7 @@ app.use(helmet({
 }));
 app.use(compression());
 app.use(express.json({ limit: '1mb' }));
+app.use(cookieParser());
 
 // ── Health check endpoint ──
 app.get('/health', async (req, res) => {

@@ -21,6 +21,7 @@ export const getBaseUrl = () => {
 
 const api = axios.create({
   baseURL: getBaseUrl(),
+  withCredentials: true,
 });
 
 // Add a request interceptor to include the token

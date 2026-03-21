@@ -3,6 +3,7 @@ import { db } from "./db.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { logAction } from "./utils/logger.js";
+import { verifyToken } from "./middleware/verifyToken.js";
 
 const router = Router();
 
@@ -72,9 +73,16 @@ router.post("/", async (req, res) => {
     // Log successful login
     await logAction(admin.email, "LOGIN", `Successful login as ${admin.role}`);
 
-    // Return token and user data
+    // Set HTTP-Only Cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
+    // Return token and user data for immediate state loading (no token returned since it's in the cookie)
     return res.status(200).json({
-      token,
       user: {
         email: admin.email,
         role: admin.role,
@@ -89,6 +97,27 @@ router.post("/", async (req, res) => {
       message: "An error occurred during login"
     });
   }
+});
+
+/**
+ * GET /login/status
+ * Check if the user's cookie is valid and return their user data
+ */
+router.get("/status", verifyToken, async (req, res) => {
+  return res.status(200).json({ user: req.user });
+});
+
+/**
+ * POST /login/logout
+ * Clear the authentication cookie
+ */
+router.post("/logout", (req, res) => {
+  res.clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+  });
+  return res.status(200).json({ message: "Logged out successfully" });
 });
 
 export default router;

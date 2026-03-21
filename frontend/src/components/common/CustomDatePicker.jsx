@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Calendar, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -35,16 +35,31 @@ const CustomDatePicker = ({ value, onChange, label, required, maxDate, error }) 
     }, []);
 
     const handlePrevMonth = (e) => {
+        e.preventDefault();
         e.stopPropagation();
         setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1));
     };
 
     const handleNextMonth = (e) => {
+        e.preventDefault();
         e.stopPropagation();
         setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1));
     };
 
+    const handlePrevYear = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setViewDate(new Date(viewDate.getFullYear() - 1, viewDate.getMonth(), 1));
+    };
+
+    const handleNextYear = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setViewDate(new Date(viewDate.getFullYear() + 1, viewDate.getMonth(), 1));
+    };
+
     const handleToday = (e) => {
+        e.preventDefault();
         e.stopPropagation();
         const today = new Date();
         setViewDate(today);
@@ -164,21 +179,41 @@ const CustomDatePicker = ({ value, onChange, label, required, maxDate, error }) 
                     >
                         {/* Header */}
                         <div className="flex justify-between items-center mb-4">
-                            <div className="font-bold text-slate-800 text-lg px-2 py-1">
+                            <div className="font-bold text-slate-800 text-[0.95rem] whitespace-nowrap px-1">
                                 {months[viewDate.getMonth()]} {viewDate.getFullYear()}
                             </div>
-                            <div className="flex gap-1.5">
+                            <div className="flex gap-0.5 sm:gap-1">
                                 <button
-                                    onClick={handlePrevMonth}
-                                    className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-blue-600 transition-colors"
+                                    type="button"
+                                    onClick={handlePrevYear}
+                                    title="Previous Year"
+                                    className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-blue-600 transition-colors"
                                 >
-                                    <ChevronLeft size={20} />
+                                    <ChevronsLeft size={18} />
                                 </button>
                                 <button
-                                    onClick={handleNextMonth}
-                                    className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-blue-600 transition-colors"
+                                    type="button"
+                                    onClick={handlePrevMonth}
+                                    title="Previous Month"
+                                    className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-blue-600 transition-colors"
                                 >
-                                    <ChevronRight size={20} />
+                                    <ChevronLeft size={18} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleNextMonth}
+                                    title="Next Month"
+                                    className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-blue-600 transition-colors"
+                                >
+                                    <ChevronRight size={18} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleNextYear}
+                                    title="Next Year"
+                                    className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-blue-600 transition-colors"
+                                >
+                                    <ChevronsRight size={18} />
                                 </button>
                             </div>
                         </div>
@@ -200,6 +235,7 @@ const CustomDatePicker = ({ value, onChange, label, required, maxDate, error }) 
                         {/* Footer */}
                         <div className="mt-4 pt-4 border-t border-slate-100 flex justify-center">
                             <button
+                                type="button"
                                 onClick={handleToday}
                                 className="text-sm font-semibold text-blue-600 bg-transparent hover:bg-blue-50 px-4 py-2 rounded-lg transition-colors"
                             >

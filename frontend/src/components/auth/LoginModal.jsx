@@ -22,8 +22,8 @@ const LoginModal = ({ isOpen, onClose }) => {
         password
       });
 
-      const { token, user } = response.data;
-      login(token, user);
+      const { user } = response.data;
+      login(user);
 
       setEmail('');
       setPassword('');
