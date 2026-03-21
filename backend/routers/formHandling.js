@@ -1075,6 +1075,44 @@ router.get("/downloadTemplate", async (req, res) => {
   }
 });
 
+// ── PDF Preview (IDM bypass) ──
+// Returns the PDF file as base64-encoded JSON so IDM cannot intercept it.
+// IDM hooks into application/pdf responses but never intercepts JSON responses.
+router.get("/pdf-preview", async (req, res) => {
+  try {
+    const { file } = req.query; // e.g. "/uploads/proof_of_publish/abc.pdf"
+
+    if (!file) {
+      return res.status(400).json({ message: "Missing file parameter" });
+    }
+
+    // Security: normalise and verify the resolved path stays inside uploads/
+    const uploadsBase = path.join(__dirname, '../uploads');
+    // Strip any leading /uploads/ prefix and resolve to an absolute path
+    const relative = file.replace(/^\/+uploads\/+/, '');
+    const fullPath = path.resolve(uploadsBase, relative);
+
+    if (!fullPath.startsWith(uploadsBase)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({ message: "File not found" });
+    }
+
+    const ext = path.extname(fullPath).toLowerCase();
+    if (ext !== '.pdf') {
+      return res.status(400).json({ message: "Only PDF files are supported" });
+    }
+
+    const data = fs.readFileSync(fullPath);
+    return res.json({ data: data.toString('base64'), mimeType: 'application/pdf' });
+
+  } catch (err) {
+    console.error('[pdf-preview] Error:', err);
+    return res.status(500).json({ message: "Failed to load file" });
+  }
+});
 
 
 export default router;

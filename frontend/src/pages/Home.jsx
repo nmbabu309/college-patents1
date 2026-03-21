@@ -119,17 +119,20 @@ const Home = () => {
         return;
       }
 
-      const doc = new jsPDF('landscape');
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a3' });
       
       const subtitle = hasActiveFilters ? "Filtered Patents Report" : "All Patents Report";
       doc.setFontSize(14);
-      doc.text("NRI Institute of Technology - Publications & Patents", 14, 15);
+      doc.text("NRI Institute of Technology - Publications & Patents", 20, 25);
       doc.setFontSize(10);
       doc.setTextColor(100);
-      doc.text(`${subtitle} • ${patentsData.length} records • Generated: ${new Date().toLocaleDateString('en-IN')}`, 14, 22);
+      doc.text(`${subtitle} • ${patentsData.length} records • Generated: ${new Date().toLocaleDateString('en-IN')}`, 20, 40);
 
       const tableColumns = [
-        "Faculty Name", "Department", "Designation", "Patent ID", "Patent Title", "Type", "Status", "Filing Date"
+        "ID", "Email", "Faculty Name", "Department", "Designation", "Caste",
+        "Patent ID", "Patent Title", "Authors", "Co-Applicants",
+        "Patent Type", "Approval Type", "Filing Date", "Publishing Date", "Granting Date",
+        "Proof of Publish", "Proof of Grant"
       ];
       
       const fmtDate = (val) => {
@@ -138,25 +141,59 @@ const Home = () => {
         return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
       };
 
+      const baseUrl = window.location.origin;
+      const fmtLink = (link) => {
+        if (!link) return '-';
+        if (link.startsWith('/uploads/')) return `${baseUrl}${link}`;
+        return link;
+      };
+
       const tableRows = patentsData.map(p => [
+        p.id || '-',
+        p.email || '-',
         p.facultyName || '-',
         p.department || '-',
         p.designation || '-',
+        p.caste || '-',
         p.patentId || '-',
         p.patentTitle || '-',
+        p.authors || '-',
+        p.coApplicants || '-',
         p.patentType || '-',
-        p.approvalType || 'Pending',
-        fmtDate(p.filingDate)
+        p.approvalType || '-',
+        fmtDate(p.filingDate),
+        fmtDate(p.publishingDate),
+        fmtDate(p.grantingDate),
+        fmtLink(p.documentLink),
+        fmtLink(p.grantDocumentLink)
       ]);
 
       autoTable(doc, { 
-        startY: 30,
+        startY: 55,
         head: [tableColumns], 
         body: tableRows,
         theme: 'grid',
-        headStyles: { fillColor: [27, 40, 69] },
-        styles: { fontSize: 7, cellPadding: 3 },
-        columnStyles: { 4: { cellWidth: 70 } }
+        headStyles: { fillColor: [27, 40, 69], fontSize: 6, halign: 'center' },
+        styles: { fontSize: 5.5, cellPadding: 2, overflow: 'linebreak' },
+        columnStyles: {
+          0: { cellWidth: 25 },   // ID
+          1: { cellWidth: 80 },   // Email
+          2: { cellWidth: 70 },   // Faculty Name
+          3: { cellWidth: 45 },   // Department
+          4: { cellWidth: 60 },   // Designation
+          5: { cellWidth: 28 },   // Caste
+          6: { cellWidth: 55 },   // Patent ID
+          7: { cellWidth: 100 },  // Patent Title
+          8: { cellWidth: 65 },   // Authors
+          9: { cellWidth: 65 },   // Co-Applicants
+          10: { cellWidth: 40 },  // Patent Type
+          11: { cellWidth: 42 },  // Approval Type
+          12: { cellWidth: 45 },  // Filing Date
+          13: { cellWidth: 45 },  // Publishing Date
+          14: { cellWidth: 45 },  // Granting Date
+          15: { cellWidth: 100 }, // Proof of Publish
+          16: { cellWidth: 100 }, // Proof of Grant
+        }
       });
 
       const filename = hasActiveFilters ? "patents-filtered.pdf" : "patents.pdf";

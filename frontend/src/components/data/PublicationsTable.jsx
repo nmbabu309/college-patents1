@@ -19,6 +19,32 @@ import { useNavigate } from "react-router-dom";
 import EditPublicationModal from "../forms/EditPublicationModal";
 import LoadingSkeleton from "../common/LoadingSkeleton";
 
+const openPdfBlob = async (fileUrl) => {
+  try {
+    // Extract just the /uploads/... path portion regardless of base URL
+    let filePath = fileUrl;
+    try { filePath = new URL(fileUrl).pathname; } catch (_) {}
+
+    // Call the backend JSON endpoint — IDM cannot intercept JSON responses
+    const response = await api.get('/form/pdf-preview', { params: { file: filePath } });
+    const { data: base64 } = response.data;
+
+    // Decode base64 → Uint8Array → Blob → blob:// URL
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const blobUrl = URL.createObjectURL(blob);
+
+    const win = window.open(blobUrl, '_blank');
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    if (!win) toast.error('Popup blocked — please allow popups for this site.');
+  } catch (err) {
+    console.error('PDF open error:', err);
+    toast.error('Failed to open PDF. Please try again.');
+  }
+};
+
 const PublicationsTable = forwardRef(({ showActions = false, externalFilters = {} }, ref) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -261,14 +287,12 @@ const PublicationsTable = forwardRef(({ showActions = false, externalFilters = {
                         >
                           {col.isLink ? (
                             row[col.key] ? (
-                              <a
-                                href={row[col.key].startsWith('http') ? row[col.key] : `${getBaseUrl()}${row[col.key]}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                onClick={() => openPdfBlob(row[col.key].startsWith('http') ? row[col.key] : `${getBaseUrl()}${row[col.key]}`)}
                                 className="text-primary-600 hover:text-primary-700 font-medium inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 rounded-full hover:bg-primary-100 transition-colors text-xs border border-primary-100"
                               >
                                 <FileText size={14} className="stroke-[2.5]" /> View
-                              </a>
+                              </button>
                             ) : (
                               <span className="text-slate-300 ml-2">-</span>
                             )
