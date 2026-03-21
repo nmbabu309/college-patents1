@@ -8,7 +8,7 @@ import Footer from '../components/common/Footer';
 import PublicationsTable from '../components/data/PublicationsTable';
 import LoginModal from '../components/auth/LoginModal';
 import { useAuth } from '../context/AuthContext';
-import { getBaseUrl } from '../api/axios';
+import { DEPARTMENTS } from '../config/constants';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 

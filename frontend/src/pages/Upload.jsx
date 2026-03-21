@@ -1,7 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Download, Upload as UploadIcon, FileSpreadsheet, ChevronLeft, Database, Info, FileText } from "lucide-react";
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import toast from 'react-hot-toast';
 import Header from "../components/common/Header";
 import Footer from "../components/common/Footer";
@@ -119,116 +117,6 @@ const Upload = () => {
 
   const [isExporting, setIsExporting] = useState(false);
 
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
-
-  const handleExportPdf = async () => {
-    if (isExportingPdf) return;
-    setIsExportingPdf(true);
-
-    try {
-      const currentFilters = tableRef.current?.getFilters() || {};
-      const hasActiveFilters = Object.values(currentFilters).some(v => v && String(v).trim().length > 0);
-      const params = { limit: 10000, page: 1 };
-      if (hasActiveFilters) params.filters = JSON.stringify(currentFilters);
-
-      const response = await api.get("/form/formGet", { params });
-
-      const rawData = response.data?.data || response.data || [];
-      const patentsData = Array.isArray(rawData) ? rawData : (rawData.data || []);
-
-      if (patentsData.length === 0) {
-        toast.error("No data available to export");
-        return;
-      }
-
-      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a3' });
-      
-      const subtitle = hasActiveFilters ? "Filtered Patents Report" : "All Patents Report";
-      doc.setFontSize(14);
-      doc.text("NRI Institute of Technology - Publications & Patents", 20, 25);
-      doc.setFontSize(10);
-      doc.setTextColor(100);
-      doc.text(`${subtitle} • ${patentsData.length} records • Generated: ${new Date().toLocaleDateString('en-IN')}`, 20, 40);
-
-      const tableColumns = [
-        "ID", "Email", "Faculty Name", "Department", "Designation", "Caste",
-        "Patent ID", "Patent Title", "Authors", "Co-Applicants",
-        "Patent Type", "Approval Type", "Filing Date", "Publishing Date", "Granting Date",
-        "Proof of Publish", "Proof of Grant"
-      ];
-      
-      const fmtDate = (val) => {
-        if (!val) return '-';
-        const d = new Date(val);
-        return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      };
-
-      const baseUrl = window.location.origin;
-      const fmtLink = (link) => {
-        if (!link) return '-';
-        if (link.startsWith('/uploads/')) return `${baseUrl}${link}`;
-        return link;
-      };
-
-      const tableRows = patentsData.map(p => [
-        p.id || '-',
-        p.email || '-',
-        p.facultyName || '-',
-        p.department || '-',
-        p.designation || '-',
-        p.caste || '-',
-        p.patentId || '-',
-        p.patentTitle || '-',
-        p.authors || '-',
-        p.coApplicants || '-',
-        p.patentType || '-',
-        p.approvalType || '-',
-        fmtDate(p.filingDate),
-        fmtDate(p.publishingDate),
-        fmtDate(p.grantingDate),
-        fmtLink(p.documentLink),
-        fmtLink(p.grantDocumentLink)
-      ]);
-
-      autoTable(doc, { 
-        startY: 55,
-        head: [tableColumns], 
-        body: tableRows,
-        theme: 'grid',
-        headStyles: { fillColor: [27, 40, 69], fontSize: 6, halign: 'center' },
-        styles: { fontSize: 5.5, cellPadding: 2, overflow: 'linebreak' },
-        columnStyles: {
-          0: { cellWidth: 25 },   // ID
-          1: { cellWidth: 80 },   // Email
-          2: { cellWidth: 70 },   // Faculty Name
-          3: { cellWidth: 45 },   // Department
-          4: { cellWidth: 60 },   // Designation
-          5: { cellWidth: 28 },   // Caste
-          6: { cellWidth: 55 },   // Patent ID
-          7: { cellWidth: 100 },  // Patent Title
-          8: { cellWidth: 65 },   // Authors
-          9: { cellWidth: 65 },   // Co-Applicants
-          10: { cellWidth: 40 },  // Patent Type
-          11: { cellWidth: 42 },  // Approval Type
-          12: { cellWidth: 45 },  // Filing Date
-          13: { cellWidth: 45 },  // Publishing Date
-          14: { cellWidth: 45 },  // Granting Date
-          15: { cellWidth: 100 }, // Proof of Publish
-          16: { cellWidth: 100 }, // Proof of Grant
-        }
-      });
-
-      const filename = hasActiveFilters ? "patents-filtered.pdf" : "patents.pdf";
-      doc.save(filename);
-      toast.success(hasActiveFilters ? "Filtered data exported as PDF" : "All data exported as PDF");
-
-    } catch (err) {
-      console.error("PDF export failed", err);
-      toast.error("Failed to generate PDF");
-    } finally {
-      setIsExportingPdf(false);
-    }
-  };
 
   const handleExportData = async () => {
     if (isExporting) return;

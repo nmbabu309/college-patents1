@@ -9,7 +9,7 @@ const Header = () => {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const { user, isAuthenticated, logout, isAnyAdmin } = useAuth();
+  const { logout, isAuthenticated, isAnyAdmin } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
+import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import {
   Search,
   Loader2,
@@ -23,7 +23,9 @@ const openPdfBlob = async (fileUrl) => {
   try {
     // Extract just the /uploads/... path portion regardless of base URL
     let filePath = fileUrl;
-    try { filePath = new URL(fileUrl).pathname; } catch (_) {}
+    try { filePath = new URL(fileUrl).pathname;        } catch {
+            /* ignore cleanup error */
+        }
 
     // Call the backend JSON endpoint — IDM cannot intercept JSON responses
     const response = await api.get('/form/pdf-preview', { params: { file: filePath } });
@@ -58,6 +60,7 @@ const PublicationsTable = forwardRef(({ showActions = false, externalFilters = {
   useEffect(() => {
     setFilters(externalFilters);
     setCurrentPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(externalFilters)]);
 
   // Pagination state (server-side)
@@ -86,6 +89,7 @@ const PublicationsTable = forwardRef(({ showActions = false, externalFilters = {
       fetchData();
     }, 400); // 400ms debounce
     return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, isAnyAdmin, currentPage, itemsPerPage, filters, sortConfig]);
 
   const fetchData = async () => {

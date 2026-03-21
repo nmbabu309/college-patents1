@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+/* eslint-disable react-hooks/set-state-in-effect */
 
 /**
  * useDarkMode - Custom hook for dark mode state management

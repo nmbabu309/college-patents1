@@ -478,9 +478,9 @@ router.put("/formEntryBatchUpdate", verifyToken, requireAnyAdmin, async (req, re
     const successfulUpdates = [];
 
     for (const row of updates) {
-      // Check if entry exists and get owner email
+      // Check if entry exists and get owner email and existing dates
       const [existingEntry] = await connection.query(
-        "SELECT email, patentType FROM patents WHERE id = ?",
+        "SELECT email, patentType, filingDate, grantingDate, publishingDate FROM patents WHERE id = ?",
         [row.id]
       );
 
@@ -492,9 +492,13 @@ router.put("/formEntryBatchUpdate", verifyToken, requireAnyAdmin, async (req, re
         continue;
       }
 
-      // Validate date requirements if patentType is provided
+      // Validate date requirements based on merged old/new data
       const patentType = row.patentType || existingEntry[0].patentType || 'Utility';
-      const dateValidation = validatePatentDates(patentType, row.filingDate, row.grantingDate, row.publishingDate);
+      const filingDate = row.filingDate || existingEntry[0].filingDate;
+      const grantingDate = row.grantingDate !== undefined ? row.grantingDate : existingEntry[0].grantingDate;
+      const publishingDate = row.publishingDate || existingEntry[0].publishingDate;
+      
+      const dateValidation = validatePatentDates(patentType, filingDate, grantingDate, publishingDate);
       if (!dateValidation.valid) {
         rejectedEntries.push({
           id: row.id,

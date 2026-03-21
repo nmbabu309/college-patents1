@@ -1,8 +1,8 @@
 import { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import api from '../api/axios';
 
 const AuthContext = createContext();
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
@@ -43,7 +43,7 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, []);
 
-  const login = (token, userData) => {
+  const login = (token) => {
     localStorage.setItem('token', token);
     try {
       const base64Url = token.split('.')[1];

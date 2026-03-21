@@ -575,7 +575,7 @@ const AdminPage = () => {
                                             required
                                         >
                                             <option value="">Select Department</option>
-                                            {departments.map(dept => (
+                                            {DEPARTMENTS.map(dept => (
                                                 <option key={dept} value={dept}>{dept}</option>
                                             ))}
                                         </select>
