@@ -497,7 +497,7 @@ const AdminPage = () => {
                     </div>
 
                     {/* Right Column: Activity Logs */}
-                    <div className="xl:col-span-2 flex flex-col h-full">
+                    <div className="xl:col-span-2 flex flex-col">
                         <AuditLogsTable 
                             logs={logs} 
                             fetchLogs={fetchLogs} 
