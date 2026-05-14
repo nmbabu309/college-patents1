@@ -82,6 +82,42 @@ const initDb = async () => {
                 )
             `);
             console.log('✅ Admins table created');
+        } else {
+            console.log('ℹ️ Admins table exists, checking for missing columns...');
+            const [adminCols] = await connection.query(`
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admins'
+            `);
+            const existingAdminCols = adminCols.map(col => col.COLUMN_NAME);
+
+            const requiredAdminCols = [
+                { name: 'role', definition: "ENUM('super_admin', 'sub_admin') NOT NULL DEFAULT 'super_admin'" },
+                { name: 'department', definition: 'VARCHAR(255) DEFAULT NULL' },
+                { name: 'updated_at', definition: 'DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP' },
+                { name: 'created_by', definition: 'INT DEFAULT NULL' }
+            ];
+
+            for (const col of requiredAdminCols) {
+                if (!existingAdminCols.includes(col.name)) {
+                    try {
+                        await connection.query(`ALTER TABLE admins ADD COLUMN ${col.name} ${col.definition}`);
+                        console.log(`✅ Added column to admins: ${col.name}`);
+                    } catch (e) {
+                        console.warn(`Failed to add admin column ${col.name}: ${e.message}`);
+                    }
+                }
+            }
+
+            if (!existingAdminCols.includes('created_by')) {
+                try {
+                    await connection.query('ALTER TABLE admins ADD FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL');
+                    console.log('✅ Fixed admins foreign key');
+                } catch (e) {
+                    console.warn(`Failed to add foreign key to admins: ${e.message}`);
+                }
+            }
+            console.log('✅ Admins table schema verified');
         }
 
         // Check if patents table exists

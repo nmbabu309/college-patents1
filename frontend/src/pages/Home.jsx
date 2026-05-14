@@ -123,7 +123,7 @@ const Home = () => {
       
       const subtitle = hasActiveFilters ? "Filtered Patents Report" : "All Patents Report";
       doc.setFontSize(14);
-      doc.text("NRI Institute of Technology - Publications & Patents", 20, 25);
+      doc.text("Dr. RVR NRI INSTITUTE OF TECHNOLOGY - Publications & Patents", 20, 25);
       doc.setFontSize(10);
       doc.setTextColor(100);
       doc.text(`${subtitle} • ${patentsData.length} records • Generated: ${new Date().toLocaleDateString('en-IN')}`, 20, 40);
@@ -231,12 +231,12 @@ const Home = () => {
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/8 border border-white/12 text-[#C8A96E] text-sm font-medium hover:bg-white/12 transition-all mb-6"
               >
                 <Award size={15} />
-                <span>NRI Institute of Technology</span>
+                <span>Dr. RVR NRI INSTITUTE OF TECHNOLOGY</span>
                 <ChevronRight size={14} className="opacity-50" />
               </a>
 
               <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 leading-tight tracking-tight text-white">
-                Publications & Patents
+                Patents
                 <span className="block text-[#C8A96E] mt-1 text-2xl md:text-3xl lg:text-4xl font-semibold">Repository</span>
               </h1>
 

@@ -31,10 +31,10 @@ const Header = () => {
               </div>
               <div className="flex flex-col">
                 <span className="font-bold text-sm md:text-base leading-tight text-[#1B2845] tracking-tight">
-                  NRI Institute of Technology
+                  Dr. RVR NRI INSTITUTE OF TECHNOLOGY
                 </span>
                 <span className="text-xs text-slate-400 font-medium">
-                  Publications & Patents
+                  Patents
                 </span>
               </div>
             </Link>

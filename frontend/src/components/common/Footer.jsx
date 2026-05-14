@@ -18,7 +18,7 @@ const Footer = () => {
                 <img src="/NRI-logo.png" alt="NRI Logo" className="w-full h-full object-contain" />
               </div>
               <div>
-                <span className="text-sm font-semibold text-white">NRI Institute of Technology</span>
+                <span className="text-sm font-semibold text-white">Dr. RVR NRI INSTITUTE OF TECHNOLOGY</span>
                 <span className="text-xs text-slate-400 ml-2">&copy; {currentYear}</span>
               </div>
             </div>
