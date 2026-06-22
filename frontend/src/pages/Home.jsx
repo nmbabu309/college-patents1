@@ -129,7 +129,7 @@ const Home = () => {
       doc.text(`${subtitle} • ${patentsData.length} records • Generated: ${new Date().toLocaleDateString('en-IN')}`, 20, 40);
 
       const tableColumns = [
-        "ID", "Email", "Faculty Name", "Department", "Designation", "Caste",
+        "ID", "Email", "Faculty Name", "Department", "Designation",
         "Patent ID", "Patent Title", "Authors", "Co-Applicants",
         "Patent Type", "Approval Type", "Filing Date", "Publishing Date", "Granting Date",
         "Proof of Publish", "Proof of Grant"
@@ -154,7 +154,6 @@ const Home = () => {
         p.facultyName || '-',
         p.department || '-',
         p.designation || '-',
-        p.caste || '-',
         p.patentId || '-',
         p.patentTitle || '-',
         p.authors || '-',
@@ -181,18 +180,17 @@ const Home = () => {
           2: { cellWidth: 70 },   // Faculty Name
           3: { cellWidth: 45 },   // Department
           4: { cellWidth: 60 },   // Designation
-          5: { cellWidth: 28 },   // Caste
-          6: { cellWidth: 55 },   // Patent ID
-          7: { cellWidth: 100 },  // Patent Title
-          8: { cellWidth: 65 },   // Authors
-          9: { cellWidth: 65 },   // Co-Applicants
-          10: { cellWidth: 40 },  // Patent Type
-          11: { cellWidth: 42 },  // Approval Type
-          12: { cellWidth: 45 },  // Filing Date
-          13: { cellWidth: 45 },  // Publishing Date
-          14: { cellWidth: 45 },  // Granting Date
-          15: { cellWidth: 100 }, // Proof of Publish
-          16: { cellWidth: 100 }, // Proof of Grant
+          5: { cellWidth: 55 },   // Patent ID
+          6: { cellWidth: 100 },  // Patent Title
+          7: { cellWidth: 65 },   // Authors
+          8: { cellWidth: 65 },   // Co-Applicants
+          9: { cellWidth: 40 },  // Patent Type
+          10: { cellWidth: 42 },  // Approval Type
+          11: { cellWidth: 45 },  // Filing Date
+          12: { cellWidth: 45 },  // Publishing Date
+          13: { cellWidth: 45 },  // Granting Date
+          14: { cellWidth: 100 }, // Proof of Publish
+          15: { cellWidth: 100 }, // Proof of Grant
         }
       });
 

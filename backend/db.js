@@ -133,7 +133,6 @@ const initDb = async () => {
                     email TEXT,
                     department VARCHAR(255),
                     designation TEXT,
-                    caste VARCHAR(10),
                     patentId TEXT,
                     patentTitle TEXT,
                     authors TEXT,
@@ -173,7 +172,6 @@ const initDb = async () => {
                 { name: 'email', definition: 'TEXT' },
                 { name: 'department', definition: 'VARCHAR(255)' },
                 { name: 'designation', definition: 'TEXT' },
-                { name: 'caste', definition: 'VARCHAR(10)' },
                 { name: 'patentId', definition: 'TEXT' },
                 { name: 'patentTitle', definition: 'TEXT' },
                 { name: 'authors', definition: 'TEXT' },
@@ -198,6 +196,17 @@ const initDb = async () => {
                     }
                 }
             }
+
+            // Drop caste column if it exists
+            if (existingColumns.includes('caste')) {
+                try {
+                    await connection.query(`ALTER TABLE patents DROP COLUMN caste`);
+                    console.log(`✅ Dropped column: caste`);
+                } catch (e) {
+                    console.warn(`Failed to drop column caste: ${e.message}`);
+                }
+            }
+
             console.log('✅ Patent table schema verified');
 
             // Apply missing indexes to existing patents table

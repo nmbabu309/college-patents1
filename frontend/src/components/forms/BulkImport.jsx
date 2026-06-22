@@ -63,7 +63,7 @@ const BulkImport = ({ isOpen, onClose, onSuccess }) => {
     // Define headers
     const headers = [
       'Row #', 'Status', 'Error Message', 'Email', 'Faculty Name', 'Department', 'Designation',
-      'Caste', 'Patent ID', 'Patent Title', 'Co-Applicants', 'Patent Type', 'Approval Type',
+      'Patent ID', 'Patent Title', 'Co-Applicants', 'Patent Type', 'Approval Type',
       'Filing Date', 'Publishing Date', 'Granting Date', 'Document Link', 'Grant Document Link', 'Authors'
     ];
 
@@ -87,7 +87,6 @@ const BulkImport = ({ isOpen, onClose, onSuccess }) => {
         result.data['Faculty Name'] || result.data['facultyName'] || '',
         result.data['Department'] || result.data['department'] || '',
         result.data['Designation'] || result.data['designation'] || '',
-        result.data['Caste'] || result.data['caste'] || '',
         result.data['Patent ID'] || result.data['patentId'] || '',
         result.data['Patent Title'] || result.data['patentTitle'] || '',
         result.data['Co-Applicants'] || result.data['coApplicants'] || '',
@@ -210,7 +209,6 @@ const BulkImport = ({ isOpen, onClose, onSuccess }) => {
               facultyName: row['Faculty Name'] || row['facultyName'] || '',
               department: row['Department'] || row['department'] || '',
               designation: row['Designation'] || row['designation'] || '',
-              caste: row['Caste'] || row['caste'] || '',
               patentId: row['Patent ID'] || row['patentId'] || '',
               patentTitle: row['Patent Title'] || row['patentTitle'] || '',
               coApplicants: row['Co-Applicants'] || row['coApplicants'] || '',

@@ -106,7 +106,6 @@ const UploadForm = ({ onSuccess, onFormChange }) => {
         email: "",
         department: "",
         designation: "",
-        caste: "",
         patentId: "",
         patentTitle: "",
         patentType: "Utility",
@@ -229,7 +228,6 @@ const UploadForm = ({ onSuccess, onFormChange }) => {
                 email: "",
                 department: "",
                 designation: "",
-                caste: "",
                 patentId: "",
                 patentTitle: "",
                 patentType: "Utility",
@@ -254,7 +252,6 @@ const UploadForm = ({ onSuccess, onFormChange }) => {
     const DESIGNATIONS = ['Professor', 'Associate Professor', 'Assistant Professor', 'Lecturer', 'Research Scholar'];
 const PATENT_TYPES = ['Utility', 'Design'];
     const APPROVAL_TYPES = ['Published', 'Granted'];
-    const CASTES = ['OC', 'BC', 'SC', 'ST', 'Others'];
 
     return (
         <form onSubmit={handleSubmit} className="space-y-8">
@@ -311,15 +308,7 @@ const PATENT_TYPES = ['Utility', 'Design'];
                         onChange={handleChange}
                         error={errors.designation}
                     />
-                    <SelectField
-                        label="Caste"
-                        name="caste"
-                        options={CASTES}
-                        icon={Users}
-                        value={formData.caste}
-                        onChange={handleChange}
-                        error={errors.caste}
-                    />
+
                 </div>
             </section>
 
@@ -470,7 +459,6 @@ const PATENT_TYPES = ['Utility', 'Design'];
                             email: "",
                             department: "",
                             designation: "",
-                            caste: "",
                             patentId: "",
                             patentTitle: "",
                             patentType: "Utility",

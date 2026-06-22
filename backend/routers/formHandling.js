@@ -32,7 +32,6 @@ const patentSchema = Joi.object({
   designation: Joi.string().min(1).max(255).required().messages({
     'any.required': 'Designation is required'
   }),
-  caste: Joi.string().allow('', null).optional(),
   patentId: Joi.string().min(1).max(255).required().messages({
     'any.required': 'Patent ID is required'
   }),
@@ -213,7 +212,6 @@ router.post("/formEntry", verifyToken, requireAnyAdmin, uploadFields, async (req
     facultyName,
     designation,
     department,
-    caste,
     coApplicants,
     patentId,
     patentTitle,
@@ -268,14 +266,13 @@ router.post("/formEntry", verifyToken, requireAnyAdmin, uploadFields, async (req
 
     await db.query(
       `INSERT INTO patents 
-  (email, facultyName, designation, department, caste, coApplicants, patentId, patentTitle, patentType, approvalType, filingDate, grantingDate, publishingDate, documentLink, grantDocumentLink, authors)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  (email, facultyName, designation, department, coApplicants, patentId, patentTitle, patentType, approvalType, filingDate, grantingDate, publishingDate, documentLink, grantDocumentLink, authors)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         email,
         facultyName,
         designation,
         department,
-        caste || null,
         coApplicants,
         patentId,
         patentTitle,
@@ -341,7 +338,6 @@ router.post("/bulkImport", verifyToken, requireAnyAdmin, async (req, res) => {
       facultyName,
       designation,
       department,
-      caste,
       coApplicants,
       patentId,
       patentTitle,
@@ -390,14 +386,13 @@ router.post("/bulkImport", verifyToken, requireAnyAdmin, async (req, res) => {
       // Insert into database
       await db.query(
         `INSERT INTO patents 
-        (email, facultyName, designation, department, caste, coApplicants, patentId, patentTitle, patentType, approvalType, filingDate, grantingDate, publishingDate, documentLink, grantDocumentLink, authors)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (email, facultyName, designation, department, coApplicants, patentId, patentTitle, patentType, approvalType, filingDate, grantingDate, publishingDate, documentLink, grantDocumentLink, authors)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           email,
           facultyName,
           designation || null,
           department,
-          caste || null,
           coApplicants || null,
           patentId,
           patentTitle,
@@ -459,7 +454,6 @@ router.put("/formEntryBatchUpdate", verifyToken, requireAnyAdmin, async (req, re
         facultyName = COALESCE(?, facultyName),
         designation = COALESCE(?, designation),
         department = COALESCE(?, department),
-        caste = COALESCE(?, caste),
         coApplicants = COALESCE(?, coApplicants),
         patentId = COALESCE(?, patentId),
         patentTitle = COALESCE(?, patentTitle),
@@ -513,7 +507,6 @@ router.put("/formEntryBatchUpdate", verifyToken, requireAnyAdmin, async (req, re
         row.facultyName ?? null,
         row.designation ?? null,
         row.department ?? null,
-        row.caste ?? null,
         row.coApplicants ?? null,
         row.patentId ?? null,
         row.patentTitle ?? null,
@@ -562,7 +555,6 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async
     facultyName,
     designation,
     department,
-    caste,
     coApplicants,
     patentId,
     patentTitle,
@@ -640,7 +632,6 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async
         facultyName = COALESCE(?, facultyName),
         designation = COALESCE(?, designation),
         department = COALESCE(?, department),
-        caste = COALESCE(?, caste),
         coApplicants = COALESCE(?, coApplicants),
         patentId = COALESCE(?, patentId),
         patentTitle = COALESCE(?, patentTitle),
@@ -659,7 +650,6 @@ router.put("/formEntryUpdate", verifyToken, requireAnyAdmin, uploadFields, async
         facultyName ?? null,
         designation ?? null,
         department ?? null,
-        caste ?? null,
         coApplicants ?? null,
         patentId ?? null,
         patentTitle ?? null,
@@ -788,7 +778,7 @@ router.get("/formGet", async (req, res) => {
     }
 
     // Process dynamic filters
-    const allowedColumns = ['facultyName', 'email', 'department', 'designation', 'caste', 'patentId', 'patentTitle', 'authors', 'coApplicants', 'patentType', 'approvalType', 'filingDate', 'publishingDate', 'grantingDate'];
+    const allowedColumns = ['facultyName', 'email', 'department', 'designation', 'patentId', 'patentTitle', 'authors', 'coApplicants', 'patentType', 'approvalType', 'filingDate', 'publishingDate', 'grantingDate'];
     for (const [key, value] of Object.entries(filters)) {
       if (value && allowedColumns.includes(key)) {
         conditions.push(`${key} LIKE ?`);
@@ -850,7 +840,7 @@ router.get("/downloadExcel", async (req, res) => {
     // Build filter conditions (same logic as /formGet)
     const filtersParam = req.query.filters;
     const filters = filtersParam ? JSON.parse(filtersParam) : {};
-    const allowedFilterColumns = ['facultyName', 'email', 'department', 'designation', 'caste', 'patentId', 'patentTitle', 'authors', 'coApplicants', 'patentType', 'approvalType', 'filingDate', 'publishingDate', 'grantingDate'];
+    const allowedFilterColumns = ['facultyName', 'email', 'department', 'designation', 'patentId', 'patentTitle', 'authors', 'coApplicants', 'patentType', 'approvalType', 'filingDate', 'publishingDate', 'grantingDate'];
 
     let conditions = [];
     let searchParams = [];
@@ -893,7 +883,6 @@ router.get("/downloadExcel", async (req, res) => {
       { header: "Faculty Name", key: "facultyName", width: 25 },
       { header: "Department", key: "department", width: 20 },
       { header: "Designation", key: "designation", width: 25 },
-      { header: "Caste", key: "caste", width: 10 },
       { header: "Patent ID", key: "patentId", width: 20 },
       { header: "Patent Title", key: "patentTitle", width: 40 },
       { header: "Authors", key: "authors", width: 25 },
@@ -1020,7 +1009,6 @@ router.get("/downloadTemplate", async (req, res) => {
       { header: "Faculty Name (Dr. John Doe)", width: 30 },
       { header: "Department (CSE/ECE/EEE/MECH/CIVIL/IT/AIML/CSD/CSM/FED/MBA)", width: 60 },
       { header: "Designation (Professor/Associate Professor/etc)", width: 40 },
-      { header: "Caste (SC/ST/OC/OBC/BC)", width: 25 },
       { header: "Patent ID (e.g. US1234567)", width: 25 },
       { header: "Patent Title", width: 45 },
       { header: "Authors (1st Author/2nd Author/3rd Author/4th Author/5th Author/Others)", width: 60 },
