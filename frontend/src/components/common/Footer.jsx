@@ -14,12 +14,12 @@ const Footer = () => {
 
             {/* Logo + Copyright */}
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center p-0.5 overflow-hidden">
+              <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center p-0.5 overflow-hidden shadow-sm">
                 <img src="/NRI-logo.png" alt="NRI Logo" className="w-full h-full object-contain" />
               </div>
-              <div>
-                <span className="text-sm font-semibold text-white">Dr. RVR NRI INSTITUTE OF TECHNOLOGY</span>
-                <span className="text-xs text-slate-400 ml-2">&copy; {currentYear}</span>
+              <div className="flex flex-col">
+                <span className="text-sm font-bold leading-tight tracking-tight text-white">Dr. RVR NRI INSTITUTE OF TECHNOLOGY</span>
+                <span className="text-xs font-medium tracking-wide text-slate-400 mt-0.5">&copy; {currentYear} All Rights Reserved</span>
               </div>
             </div>
 

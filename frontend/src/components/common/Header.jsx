@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogIn, LogOut, Upload, Menu, X, Building2 } from 'lucide-react';
+import { LogIn, LogOut, Upload, Menu, X, Building2, BookOpen } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import LoginModal from '../auth/LoginModal';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -33,8 +33,9 @@ const Header = () => {
                 <span className="font-bold text-sm md:text-base leading-tight text-[#1B2845] tracking-tight">
                   Dr. RVR NRI INSTITUTE OF TECHNOLOGY
                 </span>
-                <span className="text-xs text-slate-400 font-medium">
-                  Patents
+                <span className="text-xs text-slate-500 font-medium tracking-wide flex items-center gap-1.5 mt-0.5">
+                  <BookOpen size={12} className="text-[#C8A96E]" />
+                  Patents Repository
                 </span>
               </div>
             </Link>
